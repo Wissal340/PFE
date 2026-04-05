@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:16
+    container_name: smart_db
+    environment:
+      POSTGRES_USER: smart
+      POSTGRES_PASSWORD: smartpass
+      POSTGRES_DB: smart_screen
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: smart_redis
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: ./backend
+    container_name: smart_backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://smart:smartpass@db:5432/smart_screen
+      REDIS_URL: redis://redis:6379/0
+      STORAGE_DIR: /app/storage
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/storage:/app/storage
+    depends_on:
+      - db
+      - redis
+
+  worker:
+    build: ./worker
+    container_name: smart_worker
+    environment:
+      DATABASE_URL: postgresql+psycopg2://smart:smartpass@db:5432/smart_screen
+      REDIS_URL: redis://redis:6379/0
+      STORAGE_DIR: /app/storage
+    volumes:
+      - ./backend/storage:/app/storage
+    depends_on:
+      - db
+      - redis
+
+volumes:
+  pgdata:
