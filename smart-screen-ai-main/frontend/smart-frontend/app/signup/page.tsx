@@ -31,11 +31,11 @@ export default function SignupPage() {
         role,
       })
 
-      setSuccess('Compte créé avec succès')
+      setSuccess('Compte créé - en attente validation admin')
 
       setTimeout(() => {
         router.push('/login')
-      }, 1000)
+      }, 1500)
     } catch (err) {
       console.error(err)
       setError("Erreur lors de l'inscription")
@@ -45,68 +45,111 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100">
-      <div className="w-full max-w-md rounded-2xl border bg-white p-6 shadow-sm">
-        <h1 className="mb-2 text-2xl font-bold">Créer un compte</h1>
+    <div className="flex min-h-screen items-center justify-center bg-[#0b1020] text-slate-100 px-4">
 
-        <form onSubmit={handleSignup} className="space-y-4">
-          <input
-            type="text"
-            placeholder="Nom complet"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            className="w-full rounded-xl border px-4 py-3"
-          />
+      <div className="w-full max-w-5xl rounded-[28px] border border-blue-900/30 bg-gradient-to-r from-[#0f172a] via-[#111c44] to-[#0b1020] shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
 
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-xl border px-4 py-3"
-          />
+        {/* HEADER */}
+        <div className="border-b border-white/10 px-6 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-600/20 ring-1 ring-blue-400/30">
+              <span className="text-lg font-bold text-blue-300">S</span>
+            </div>
 
-          <input
-            type="password"
-            placeholder="Mot de passe"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-xl border px-4 py-3"
-          />
+            <div>
+              <div className="text-lg font-semibold text-white">
+                Smart Screen AI
+              </div>
+              <div className="text-xs text-slate-400">
+                Create account
+              </div>
+            </div>
+          </div>
+        </div>
 
-          <select
-            value={role}
-            onChange={(e) => setRole(e.target.value)}
-            className="w-full rounded-xl border px-4 py-3"
-          >
-            <option value="viewer">viewer</option>
-            <option value="technicien">technicien</option>
-            <option value="admin">admin</option>
-          </select>
+        {/* CONTENT */}
+        <div className="grid gap-8 px-6 py-10 md:px-10 lg:grid-cols-2">
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-xl bg-slate-900 px-4 py-3 text-white"
-          >
-            {loading ? 'Chargement...' : "S'inscrire"}
-          </button>
+          {/* LEFT */}
+          <div className="flex flex-col justify-center">
+            <p className="text-xs uppercase tracking-[0.22em] text-slate-400">
+              Join platform
+            </p>
 
-          {error && (
-            <div className="text-red-600 text-sm">{error}</div>
-          )}
+            <h1 className="mt-4 text-4xl font-bold text-white">
+              Créer un compte
+            </h1>
 
-          {success && (
-            <div className="text-green-600 text-sm">{success}</div>
-          )}
-        </form>
+            <p className="mt-4 text-slate-300">
+              Votre compte sera validé par un administrateur avant activation.
+            </p>
+          </div>
 
-        <p className="mt-4 text-sm">
-          Déjà un compte ?{' '}
-          <Link href="/login" className="underline">
-            Se connecter
-          </Link>
-        </p>
+          {/* FORM */}
+          <div className="rounded-3xl border border-slate-800 bg-[#111827]/95 p-6">
+
+            <form onSubmit={handleSignup} className="space-y-4">
+
+              <input
+                type="text"
+                placeholder="Nom complet"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className="w-full rounded-xl bg-[#0f172a] border border-slate-700 px-4 py-3"
+              />
+
+              <input
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full rounded-xl bg-[#0f172a] border border-slate-700 px-4 py-3"
+              />
+
+              <input
+                type="password"
+                placeholder="Mot de passe"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-xl bg-[#0f172a] border border-slate-700 px-4 py-3"
+              />
+
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                className="w-full rounded-xl bg-[#0f172a] border border-slate-700 px-4 py-3"
+              >
+                <option value="viewer">Viewer</option>
+                <option value="technicien">Technicien</option>
+                <option value="admin">Admin</option>
+              </select>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full rounded-xl bg-blue-600 py-3 text-white hover:bg-blue-700"
+              >
+                {loading ? 'Création...' : "S'inscrire"}
+              </button>
+
+              {error && (
+                <div className="text-red-400 text-sm">{error}</div>
+              )}
+
+              {success && (
+                <div className="text-green-400 text-sm">{success}</div>
+              )}
+            </form>
+
+            <p className="mt-6 text-sm text-slate-400">
+              Déjà un compte ?{' '}
+              <Link href="/login" className="text-blue-400">
+                Se connecter
+              </Link>
+            </p>
+
+          </div>
+        </div>
       </div>
     </div>
   )

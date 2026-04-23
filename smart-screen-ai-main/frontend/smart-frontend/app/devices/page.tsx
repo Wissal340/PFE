@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   deleteDevice,
   getDevices,
@@ -15,14 +16,95 @@ type Device = {
   latitude?: number | null
   longitude?: number | null
   status?: string
-  is_online?: boolean
+}
+
+function DeviceCard({
+  device,
+  onOpen,
+  onEdit,
+  onDelete,
+}: {
+  device: Device
+  onOpen: () => void
+  onEdit: () => void
+  onDelete: () => void
+}) {
+  const isOnline = device.status === 'online'
+
+  return (
+    <div
+      onClick={onOpen}
+      className="cursor-pointer rounded-3xl border border-slate-800 bg-[#111827]/95 p-6 shadow-[0_10px_40px_rgba(0,0,0,0.35)] transition hover:-translate-y-1 hover:border-blue-500/40 hover:shadow-[0_20px_50px_rgba(37,99,235,0.12)]"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold text-white">
+            {device.name}
+          </h2>
+          <p className="mt-2 text-sm text-slate-400">
+            {device.location || 'Sans localisation'}
+          </p>
+        </div>
+
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-medium ${
+            isOnline
+              ? 'border border-green-500/30 bg-green-500/15 text-green-300'
+              : 'border border-red-500/30 bg-red-500/15 text-red-300'
+          }`}
+        >
+          {isOnline ? 'Online' : 'Offline'}
+        </span>
+      </div>
+
+      <div className="mt-4 rounded-2xl border border-slate-800 bg-[#0f172a] p-4 text-sm text-slate-300">
+        <div>
+          <span className="font-medium text-slate-400">Latitude :</span>{' '}
+          {device.latitude ?? '-'}
+        </div>
+        <div className="mt-1">
+          <span className="font-medium text-slate-400">Longitude :</span>{' '}
+          {device.longitude ?? '-'}
+        </div>
+      </div>
+
+      <div
+        className="mt-5 flex flex-wrap gap-2"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onOpen}
+          className="rounded-xl bg-blue-600 px-4 py-2 text-sm text-white hover:bg-blue-700"
+        >
+          Ouvrir
+        </button>
+
+        <button
+          onClick={onEdit}
+          className="rounded-xl border border-slate-700 bg-white/5 px-4 py-2 text-sm text-slate-200 hover:bg-white/10"
+        >
+          Modifier
+        </button>
+
+        <button
+          onClick={onDelete}
+          className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-300 hover:bg-red-500/20"
+        >
+          Supprimer
+        </button>
+      </div>
+    </div>
+  )
 }
 
 export default function DevicesPage() {
+  const router = useRouter()
+
   const [devices, setDevices] = useState<Device[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
+
   const [form, setForm] = useState({
     name: '',
     location: '',
@@ -60,27 +142,14 @@ export default function DevicesPage() {
     setForm({
       name: device.name || '',
       location: device.location || '',
-      latitude:
-        device.latitude !== null && device.latitude !== undefined
-          ? String(device.latitude)
-          : '',
-      longitude:
-        device.longitude !== null && device.longitude !== undefined
-          ? String(device.longitude)
-          : '',
+      latitude: device.latitude ? String(device.latitude) : '',
+      longitude: device.longitude ? String(device.longitude) : '',
       status: device.status || 'offline',
     })
   }
 
   function cancelEdit() {
     setEditingId(null)
-    setForm({
-      name: '',
-      location: '',
-      latitude: '',
-      longitude: '',
-      status: 'offline',
-    })
   }
 
   async function handleUpdate(id: string) {
@@ -102,7 +171,7 @@ export default function DevicesPage() {
   }
 
   async function handleDelete(id: string) {
-    const ok = window.confirm('Voulez-vous vraiment supprimer ce device ?')
+    const ok = window.confirm('Supprimer ce device ?')
     if (!ok) return
 
     try {
@@ -110,162 +179,150 @@ export default function DevicesPage() {
       await loadDevices()
     } catch (err) {
       console.error(err)
-      alert('Erreur lors de la suppression')
+      alert('Erreur suppression')
     }
   }
 
+  function openDevice(id: string) {
+    router.push(`/devices/${id}`)
+  }
+
+  const onlineCount = useMemo(
+    () => devices.filter((d) => d.status === 'online').length,
+    [devices]
+  )
+
   if (loading) {
-    return <div>Chargement...</div>
+    return (
+      <div className="min-h-screen bg-[#0b1020] p-6 text-slate-100">
+        Chargement...
+      </div>
+    )
   }
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Devices</h1>
-        <p className="text-sm text-slate-500">
-          Liste des screens enregistrés
-        </p>
-      </div>
+    <div className="min-h-screen bg-[#0b1020] text-slate-100">
+      <div className="mx-auto max-w-[1600px] px-4 py-6">
+        <div className="space-y-6">
 
-      {error && (
-        <div className="rounded-xl border border-red-300 bg-red-50 p-4 text-red-700">
-          {error}
-        </div>
-      )}
+          {/* HEADER */}
+          <div className="rounded-[28px] border border-blue-900/30 bg-gradient-to-r from-[#0f172a] via-[#111c44] to-[#0b1020] p-6 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
+            <h1 className="text-4xl font-bold text-white">Devices</h1>
+            <p className="mt-2 text-slate-300">
+              Gestion et supervision des écrans
+            </p>
 
-      <div className="grid gap-4">
-        {devices.length === 0 ? (
-          <div className="rounded-xl border bg-white p-4">
-            Aucun device trouvé.
+            <div className="mt-4 flex gap-3">
+              <span className="rounded-full border border-blue-500/30 bg-blue-500/10 px-4 py-2 text-sm text-blue-300">
+                Total: {devices.length}
+              </span>
+
+              <span className="rounded-full border border-green-500/30 bg-green-500/10 px-4 py-2 text-sm text-green-300">
+                Online: {onlineCount}
+              </span>
+            </div>
           </div>
-        ) : (
-          devices.map((device) => {
-            const isEditing = editingId === device.id
 
-            return (
-              <div
-                key={device.id}
-                className="rounded-2xl border bg-white p-5 shadow-sm"
-              >
-                {isEditing ? (
-                  <div className="space-y-3">
-                    <input
-                      type="text"
-                      value={form.name}
-                      onChange={(e) =>
-                        setForm({ ...form, name: e.target.value })
-                      }
-                      placeholder="Name"
-                      className="w-full rounded-xl border px-4 py-2"
-                    />
+          {error && (
+            <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-red-200">
+              {error}
+            </div>
+          )}
 
-                    <input
-                      type="text"
-                      value={form.location}
-                      onChange={(e) =>
-                        setForm({ ...form, location: e.target.value })
-                      }
-                      placeholder="Location"
-                      className="w-full rounded-xl border px-4 py-2"
-                    />
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <input
-                        type="text"
-                        value={form.latitude}
-                        onChange={(e) =>
-                          setForm({ ...form, latitude: e.target.value })
-                        }
-                        placeholder="Latitude"
-                        className="w-full rounded-xl border px-4 py-2"
-                      />
-
-                      <input
-                        type="text"
-                        value={form.longitude}
-                        onChange={(e) =>
-                          setForm({ ...form, longitude: e.target.value })
-                        }
-                        placeholder="Longitude"
-                        className="w-full rounded-xl border px-4 py-2"
-                      />
-                    </div>
-
-                    <select
-                      value={form.status}
-                      onChange={(e) =>
-                        setForm({ ...form, status: e.target.value })
-                      }
-                      className="w-full rounded-xl border px-4 py-2"
-                    >
-                      <option value="online">online</option>
-                      <option value="offline">offline</option>
-                    </select>
-
-                    <div className="flex gap-3">
-                      <button
-                        onClick={() => handleUpdate(device.id)}
-                        className="rounded-xl bg-slate-900 px-4 py-2 text-white"
-                      >
-                        Save
-                      </button>
-
-                      <button
-                        onClick={cancelEdit}
-                        className="rounded-xl border px-4 py-2"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="text-lg font-semibold">{device.name}</div>
-                      <div className="text-sm text-slate-500">
-                        {device.location || 'Sans localisation'}
-                      </div>
-
-                      <div className="mt-2 text-xs text-slate-400">
-                        {device.latitude ?? '-'} / {device.longitude ?? '-'}
-                      </div>
-
-                      <div className="mt-2">
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-medium ${
-                            device.status === 'online' || device.is_online
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700'
-                          }`}
-                        >
-                          {device.status === 'online' || device.is_online
-                            ? 'Online'
-                            : 'Offline'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => startEdit(device)}
-                        className="rounded-xl border px-4 py-2 text-sm"
-                      >
-                        Modifier
-                      </button>
-
-                      <button
-                        onClick={() => handleDelete(device.id)}
-                        className="rounded-xl bg-red-600 px-4 py-2 text-sm text-white"
-                      >
-                        Supprimer
-                      </button>
-                    </div>
-                  </div>
-                )}
+          {/* DEVICES GRID */}
+          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+            {devices.length === 0 ? (
+              <div className="rounded-3xl border border-slate-800 bg-[#111827] p-6">
+                Aucun device trouvé.
               </div>
-            )
-          })
-        )}
+            ) : (
+              devices.map((device) => {
+                const isEditing = editingId === device.id
+
+                if (isEditing) {
+                  return (
+                    <div
+                      key={device.id}
+                      className="rounded-3xl border border-slate-800 bg-[#111827] p-6"
+                    >
+                      <div className="space-y-3">
+                        <input
+                          value={form.name}
+                          onChange={(e) =>
+                            setForm({ ...form, name: e.target.value })
+                          }
+                          className="w-full rounded-xl bg-[#0f172a] border border-slate-700 px-4 py-3"
+                        />
+
+                        <input
+                          value={form.location}
+                          onChange={(e) =>
+                            setForm({ ...form, location: e.target.value })
+                          }
+                          className="w-full rounded-xl bg-[#0f172a] border border-slate-700 px-4 py-3"
+                        />
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <input
+                            value={form.latitude}
+                            onChange={(e) =>
+                              setForm({ ...form, latitude: e.target.value })
+                            }
+                            className="rounded-xl bg-[#0f172a] border border-slate-700 px-4 py-3"
+                          />
+                          <input
+                            value={form.longitude}
+                            onChange={(e) =>
+                              setForm({ ...form, longitude: e.target.value })
+                            }
+                            className="rounded-xl bg-[#0f172a] border border-slate-700 px-4 py-3"
+                          />
+                        </div>
+
+                        <select
+                          value={form.status}
+                          onChange={(e) =>
+                            setForm({ ...form, status: e.target.value })
+                          }
+                          className="w-full rounded-xl bg-[#0f172a] border border-slate-700 px-4 py-3"
+                        >
+                          <option value="online">online</option>
+                          <option value="offline">offline</option>
+                        </select>
+
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() => handleUpdate(device.id)}
+                            className="rounded-xl bg-blue-600 px-4 py-2 text-white"
+                          >
+                            Save
+                          </button>
+
+                          <button
+                            onClick={cancelEdit}
+                            className="rounded-xl border border-slate-700 px-4 py-2"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+
+                return (
+                  <DeviceCard
+                    key={device.id}
+                    device={device}
+                    onOpen={() => openDevice(device.id)}
+                    onEdit={() => startEdit(device)}
+                    onDelete={() => handleDelete(device.id)}
+                  />
+                )
+              })
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )

@@ -45,5 +45,13 @@ services:
       - db
       - redis
 
+  ai_service:
+    build:
+      context: ./ai-service
+    container_name: smart_ai_service
+    ports:
+      - "8001:8001"
+
 volumes:
   pgdata:
+  
