@@ -31,7 +31,7 @@ function StatCard({
   valueClassName?: string
 }) {
   return (
-    <div className="rounded-3xl border border-slate-800 bg-[#111827]/95 p-6 shadow-[0_10px_40px_rgba(0,0,0,0.35)] transition duration-300 hover:-translate-y-1 hover:border-blue-500/40 hover:shadow-[0_20px_50px_rgba(37,99,235,0.12)]">
+    <div className="rounded-3xl border border-slate-800 bg-[#111827]/95 p-6 shadow-[0_10px_40px_rgba(0,0,0,0.35)] transition duration-300 hover:-translate-y-1 hover:border-blue-500/40">
       <p className="text-sm font-medium text-slate-400">{label}</p>
       <p className={`mt-3 text-4xl font-bold tracking-tight ${valueClassName}`}>
         {value}
@@ -42,25 +42,15 @@ function StatCard({
 }
 
 function getVisualBadgeClass(status: string) {
-  if (status === 'black_screen') {
-    return 'border-red-500/30 bg-red-500/15 text-red-300'
-  }
-  if (status === 'frozen') {
-    return 'border-orange-500/30 bg-orange-500/15 text-orange-300'
-  }
-  if (status === 'display_error') {
-    return 'border-violet-500/30 bg-violet-500/15 text-violet-300'
-  }
+  if (status === 'black_screen') return 'border-red-500/30 bg-red-500/15 text-red-300'
+  if (status === 'frozen') return 'border-orange-500/30 bg-orange-500/15 text-orange-300'
+  if (status === 'display_error') return 'border-violet-500/30 bg-violet-500/15 text-violet-300'
   return 'border-green-500/30 bg-green-500/15 text-green-300'
 }
 
 function getComplianceBadgeClass(status: string) {
-  if (status === 'non_compliant') {
-    return 'border-red-500/30 bg-red-500/15 text-red-300'
-  }
-  if (status === 'partially_compliant') {
-    return 'border-orange-500/30 bg-orange-500/15 text-orange-300'
-  }
+  if (status === 'non_compliant') return 'border-red-500/30 bg-red-500/15 text-red-300'
+  if (status === 'partially_compliant') return 'border-orange-500/30 bg-orange-500/15 text-orange-300'
   return 'border-green-500/30 bg-green-500/15 text-green-300'
 }
 
@@ -102,11 +92,17 @@ export default function VisualMonitoringPage() {
 
     if (filter === 'visual_issue') {
       result = result.filter((item) => item.visual_status !== 'normal')
-    } else if (filter === 'compliance_issue') {
+    }
+
+    if (filter === 'compliance_issue') {
       result = result.filter((item) => item.compliance_status === 'non_compliant')
-    } else if (filter === 'healthy') {
+    }
+
+    if (filter === 'healthy') {
       result = result.filter(
-        (item) => item.visual_status === 'normal' && item.compliance_status === 'compliant'
+        (item) =>
+          item.visual_status === 'normal' &&
+          item.compliance_status === 'compliant'
       )
     }
 
@@ -231,13 +227,15 @@ export default function VisualMonitoringPage() {
                   key={capture.id}
                   className="overflow-hidden rounded-3xl border border-slate-800 bg-[#111827]/95 shadow-[0_10px_40px_rgba(0,0,0,0.35)] transition hover:-translate-y-1 hover:border-blue-500/30 hover:shadow-[0_20px_50px_rgba(37,99,235,0.12)]"
                 >
-                  <div className="aspect-video bg-black">
-                    <img
-                      src={capture.image_url}
-                      alt={capture.device_name}
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
+                  <Link href={`/captures/${capture.id}`}>
+                    <div className="aspect-video cursor-pointer bg-black">
+                      <img
+                        src={capture.image_url}
+                        alt={capture.device_name}
+                        className="h-full w-full object-cover transition duration-300 hover:scale-105"
+                      />
+                    </div>
+                  </Link>
 
                   <div className="p-5">
                     <div className="flex items-start justify-between gap-3">
@@ -254,7 +252,7 @@ export default function VisualMonitoringPage() {
                         href={`/devices/${capture.device_id}`}
                         className="rounded-xl border border-slate-700 bg-white/5 px-3 py-2 text-xs text-slate-200 transition hover:bg-white/10"
                       >
-                        Ouvrir
+                        Device
                       </Link>
                     </div>
 
@@ -302,9 +300,27 @@ export default function VisualMonitoringPage() {
                           : ''}
                       </div>
 
-                      <div className="text-xs text-slate-500">
+                      <div className="pt-2 text-xs text-slate-500">
                         {new Date(capture.created_at).toLocaleString()}
                       </div>
+                    </div>
+
+                    <div className="mt-5 flex gap-2">
+                      <Link
+                        href={`/captures/${capture.id}`}
+                        className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-medium text-white transition hover:bg-blue-700"
+                      >
+                        Détail capture
+                      </Link>
+
+                      <a
+                        href={capture.image_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-xl border border-slate-700 bg-white/5 px-4 py-2 text-xs text-slate-200 transition hover:bg-white/10"
+                      >
+                        Ouvrir image
+                      </a>
                     </div>
                   </div>
                 </div>

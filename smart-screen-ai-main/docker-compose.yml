@@ -28,6 +28,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend/storage:/app/storage
+      - ./backend/uploads:/app/uploads
     depends_on:
       - db
       - redis

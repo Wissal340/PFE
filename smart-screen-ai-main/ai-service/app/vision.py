@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import io
 from typing import Any
-
+import tempfile
+import cv2
 import numpy as np
 from PIL import Image, ImageOps
 
@@ -120,32 +121,83 @@ def check_compliance(
     expected_bytes: bytes,
     media_type: str = "image",
 ) -> dict[str, Any]:
-    similarity_score = _image_similarity(current_bytes, expected_bytes)
 
-    if media_type == "image":
-        if similarity_score >= 0.80:
+    if media_type == "video":
+        seconds = [1, 3, 5, 8]
+
+        best_score = 0
+
+        for sec in seconds:
+            frame_bytes = extract_video_frame(expected_bytes, second=sec)
+
+            if frame_bytes is None:
+                continue
+
+            score = _image_similarity(current_bytes, frame_bytes)
+
+            if score > best_score:
+                best_score = score
+
+        if best_score >= 0.55:
             return {
                 "compliance_status": "compliant",
-                "similarity_score": similarity_score,
-                "reason": "Le contenu affiché correspond au média prévu",
+                "similarity_score": best_score,
+                "reason": "Correspond à la vidéo (multi-frame)",
+            }
+
+        if best_score >= 0.35:
+            return {
+                "compliance_status": "partially_compliant",
+                "similarity_score": best_score,
+                "reason": "Correspondance partielle vidéo",
             }
 
         return {
             "compliance_status": "non_compliant",
-            "similarity_score": similarity_score,
-            "reason": "Le contenu affiché ne correspond pas à l'image prévue",
+            "similarity_score": best_score,
+            "reason": "Contenu différent de la vidéo prévue",
         }
 
-    # V1 vidéo : contrôle simple
-    if similarity_score >= 0.35:
+    # IMAGE (inchangé)
+    similarity_score = _image_similarity(current_bytes, expected_bytes)
+
+    if similarity_score >= 0.80:
         return {
-            "compliance_status": "partially_compliant",
+            "compliance_status": "compliant",
             "similarity_score": similarity_score,
-            "reason": "Correspondance partielle avec le contenu vidéo attendu",
+            "reason": "Image conforme",
         }
 
     return {
         "compliance_status": "non_compliant",
         "similarity_score": similarity_score,
-        "reason": "Le contenu affiché ne correspond pas au média vidéo attendu",
+        "reason": "Image différente",
     }
+def extract_video_frame(video_bytes: bytes, second: int = 2) -> bytes | None:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as temp_video:
+        temp_video.write(video_bytes)
+        temp_video_path = temp_video.name
+
+    cap = cv2.VideoCapture(temp_video_path)
+
+    if not cap.isOpened():
+        cap.release()
+        return None
+
+    fps = cap.get(cv2.CAP_PROP_FPS) or 25
+    frame_number = int(fps * second)
+
+    cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+
+    success, frame = cap.read()
+    cap.release()
+
+    if not success:
+        return None
+
+    success, encoded = cv2.imencode(".jpg", frame)
+
+    if not success:
+        return None
+
+    return encoded.tobytes()

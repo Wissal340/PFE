@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
 from fastapi import UploadFile, File
-from fastapi import Query
 import os
 
 import requests
@@ -71,57 +70,27 @@ UPLOAD_DIR = BASE_DIR / "uploads"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
-def resolve_expected_media_path(media_url: str) -> str | None:
+
+
+def resolve_expected_media_path(media_url: str | None) -> str | None:
     if not media_url:
         return None
 
     uploads_prefix = "http://localhost:8000/uploads/"
+
     if media_url.startswith(uploads_prefix):
         filename = media_url.replace(uploads_prefix, "")
         path = UPLOAD_DIR / filename
-        if path.exists():
-            return str(path)
+        return str(path) if path.exists() else None
 
     if media_url.startswith("/uploads/"):
         filename = media_url.replace("/uploads/", "")
         path = UPLOAD_DIR / filename
-        if path.exists():
-            return str(path)
+        return str(path) if path.exists() else None
 
     return None
-def call_compliance_ai_service(
-    current_path: str,
-    expected_path: str,
-    media_type: str = "image",
-):
-    try:
-        with open(current_path, "rb") as current_file, open(expected_path, "rb") as expected_file:
-            files = {
-                "file": ("current.jpg", current_file, "image/jpeg"),
-                "expected_file": ("expected.jpg", expected_file, "image/jpeg"),
-            }
 
-            data = {
-                "media_type": media_type,
-            }
 
-            response = requests.post(
-                f"{AI_SERVICE_URL}/check/compliance",
-                files=files,
-                data=data,
-                timeout=5,
-            )
-
-        if response.status_code == 200:
-            return response.json()
-    except Exception as e:
-        print("Compliance AI service error:", e)
-
-    return {
-        "compliance_status": "unknown",
-        "similarity_score": 0,
-        "reason": "Compliance AI unavailable",
-    }
 def call_visual_ai_service(
     current_path: str,
     previous_path: str | None = None,
@@ -129,13 +98,8 @@ def call_visual_ai_service(
 ):
     try:
         with open(current_path, "rb") as current_file:
-            files = {
-                "file": ("current.jpg", current_file, "image/jpeg"),
-            }
-
-            data = {
-                "media_type": media_type,
-            }
+            files = {"file": ("current.jpg", current_file, "image/jpeg")}
+            data = {"media_type": media_type}
 
             previous_file_handle = None
 
@@ -152,7 +116,7 @@ def call_visual_ai_service(
                     f"{AI_SERVICE_URL}/detect/visual",
                     files=files,
                     data=data,
-                    timeout=5,
+                    timeout=8,
                 )
             finally:
                 if previous_file_handle:
@@ -160,6 +124,8 @@ def call_visual_ai_service(
 
         if response.status_code == 200:
             return response.json()
+
+        print("Visual AI bad response:", response.status_code, response.text)
     except Exception as e:
         print("Visual AI service error:", e)
 
@@ -171,6 +137,96 @@ def call_visual_ai_service(
         "freeze_score": 0,
         "similarity_score": 0,
     }
+
+
+def call_compliance_ai_service(
+    current_path: str,
+    expected_path: str,
+    media_type: str = "image",
+):
+    try:
+        with open(current_path, "rb") as current_file, open(expected_path, "rb") as expected_file:
+            files = {
+                "file": ("current.jpg", current_file, "image/jpeg"),
+                "expected_file": ("expected.jpg", expected_file, "image/jpeg"),
+            }
+            data = {"media_type": media_type}
+
+            response = requests.post(
+                f"{AI_SERVICE_URL}/check/compliance",
+                files=files,
+                data=data,
+                timeout=10,
+            )
+
+        if response.status_code == 200:
+            return response.json()
+
+        print("Compliance AI bad response:", response.status_code, response.text)
+    except Exception as e:
+        print("Compliance AI service error:", e)
+
+    return {
+        "compliance_status": "unknown",
+        "similarity_score": 0,
+        "reason": "Compliance AI unavailable",
+    }
+
+
+def _time_to_minutes(value: str | None) -> int | None:
+    if not value:
+        return None
+
+    try:
+        hour, minute = value.split(":")[:2]
+        return int(hour) * 60 + int(minute)
+    except Exception:
+        return None
+
+
+def get_active_playlist_item(db: Session, device_id: UUID) -> PlaylistItem | None:
+    playlist = db.query(Playlist).filter(Playlist.device_id == device_id).first()
+    if not playlist:
+        return None
+
+    items = (
+        db.query(PlaylistItem)
+        .filter(
+            PlaylistItem.playlist_id == playlist.id,
+            PlaylistItem.is_active == True,
+        )
+        .order_by(PlaylistItem.order_index.asc())
+        .all()
+    )
+
+    if not items:
+        return None
+
+    now = datetime.now()
+    today = now.date().isoformat()
+    current_minutes = now.hour * 60 + now.minute
+
+    for item in items:
+        if item.start_date and today < item.start_date:
+            continue
+
+        if item.end_date and today > item.end_date:
+            continue
+
+        start_minutes = _time_to_minutes(item.start_time)
+        end_minutes = _time_to_minutes(item.end_time)
+
+        if start_minutes is not None and current_minutes < start_minutes:
+            continue
+
+        if end_minutes is not None and current_minutes > end_minutes:
+            continue
+
+        return item
+
+    return None
+
+
 
 
 def call_ai_service(cpu: float, ram: float, temp: float, vlc_running: bool):
@@ -673,63 +729,6 @@ def get_playlist(
     db.refresh(playlist)
     return playlist
 
-from datetime import datetime
-
-
-def _time_to_minutes(value: str | None) -> int | None:
-    if not value:
-        return None
-    try:
-        parts = value.split(":")
-        hour = int(parts[0])
-        minute = int(parts[1])
-        return hour * 60 + minute
-    except Exception:
-        return None
-
-
-def get_active_playlist_item(db: Session, device_id: UUID) -> PlaylistItem | None:
-    playlist = db.query(Playlist).filter(Playlist.device_id == device_id).first()
-    if not playlist:
-        return None
-
-    items = (
-        db.query(PlaylistItem)
-        .filter(
-            PlaylistItem.playlist_id == playlist.id,
-            PlaylistItem.is_active == True,
-        )
-        .order_by(PlaylistItem.order_index.asc())
-        .all()
-    )
-
-    if not items:
-        return None
-
-    now = datetime.now()
-    today = now.date().isoformat()
-    current_minutes = now.hour * 60 + now.minute
-
-    for item in items:
-        # filtre date
-        if item.start_date and today < item.start_date:
-            continue
-        if item.end_date and today > item.end_date:
-            continue
-
-        # filtre heure
-        start_minutes = _time_to_minutes(item.start_time)
-        end_minutes = _time_to_minutes(item.end_time)
-
-        if start_minutes is not None and current_minutes < start_minutes:
-            continue
-        if end_minutes is not None and current_minutes > end_minutes:
-            continue
-
-        return item
-
-    return None
-
 
 @app.post("/devices/{device_id}/playlist/items", response_model=PlaylistOut)
 def add_playlist_item(
@@ -1155,9 +1154,6 @@ def get_ai_dashboard_history(
 
     return result
 
-UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-
 
 @app.post("/devices/{device_id}/capture")
 async def upload_capture(
@@ -1166,45 +1162,41 @@ async def upload_capture(
     x_api_key: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
-    # 1. Vérifier device
     device = db.query(Device).filter(Device.id == device_id).first()
+
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
 
     if device.api_key != x_api_key:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
-    # 2. Trouver capture précédente
     device_prefix = f"{device_id}_"
 
     previous_files = sorted(
-        [p for p in Path(UPLOAD_DIR).glob(f"{device_prefix}*.jpg")],
+        [p for p in UPLOAD_DIR.glob(f"{device_prefix}*.jpg")],
         key=lambda p: p.stat().st_mtime,
         reverse=True,
     )
 
     previous_path = str(previous_files[0]) if previous_files else None
 
-    # 3. Sauvegarder nouvelle image
     filename = f"{device_id}_{datetime.utcnow().timestamp()}.jpg"
-    filepath = os.path.join(UPLOAD_DIR, filename)
+    filepath = UPLOAD_DIR / filename
 
     content = await file.read()
+
     with open(filepath, "wb") as f:
         f.write(content)
 
-    # 4. Récupérer média actif (playlist)
     active_item = get_active_playlist_item(db, device_id)
     media_type = active_item.media_type if active_item else "video"
 
-    # 5. AI VISUAL
     visual_result = call_visual_ai_service(
-        current_path=filepath,
+        current_path=str(filepath),
         previous_path=previous_path,
         media_type=media_type,
     )
 
-    # 6. AI COMPLIANCE
     compliance_result = {
         "compliance_status": "unknown",
         "similarity_score": 0,
@@ -1215,15 +1207,14 @@ async def upload_capture(
         expected_path = resolve_expected_media_path(active_item.media_url)
         if expected_path:
             compliance_result = call_compliance_ai_service(
-                current_path=filepath,
+                current_path=str(filepath),
                 expected_path=expected_path,
                 media_type=media_type,
             )
 
-    # 7. STOCKAGE EN BASE
     capture = ScreenCapture(
         device_id=device.id,
-        image_path=filepath,
+        image_path=str(filepath),
         image_url=f"http://localhost:8000/uploads/{filename}",
         visual_status=visual_result.get("anomaly_status", "unknown"),
         visual_reason=visual_result.get("reason"),
@@ -1241,7 +1232,6 @@ async def upload_capture(
     db.commit()
     db.refresh(capture)
 
-    # 8. ALERTES VISUELLES
     anomaly_status = visual_result.get("anomaly_status", "unknown")
     visual_reason = visual_result.get("reason", "")
 
@@ -1276,7 +1266,6 @@ async def upload_capture(
             }
         )
 
-    # 9. ALERTES COMPLIANCE
     if compliance_result.get("compliance_status") == "non_compliant":
         alert = Alert(
             device_id=device.id,
@@ -1308,16 +1297,16 @@ async def upload_capture(
             }
         )
 
-    # 10. Réponse finale
     return {
         "message": "Capture uploaded",
         "capture_id": capture.id,
-        "path": filepath,
+        "path": str(filepath),
         "expected_media_type": media_type,
         "expected_media_title": active_item.title if active_item else None,
         "visual_ai": visual_result,
         "compliance_ai": compliance_result,
     }
+
 
 @app.get("/devices/{device_id}/last-capture")
 def get_last_capture(
@@ -1326,6 +1315,7 @@ def get_last_capture(
     current_user: User = Depends(get_current_user),
 ):
     device = db.query(Device).filter(Device.id == device_id).first()
+
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
 
@@ -1338,8 +1328,22 @@ def get_last_capture(
         if not access:
             raise HTTPException(status_code=403, detail="Insufficient permissions")
 
+    capture = (
+        db.query(ScreenCapture)
+        .filter(ScreenCapture.device_id == device_id)
+        .order_by(ScreenCapture.created_at.desc())
+        .first()
+    )
+
+    if capture:
+        return {
+            "filename": Path(capture.image_path).name,
+            "url": capture.image_url,
+            "captured_at": capture.created_at.isoformat() if capture.created_at else None,
+        }
+
     files = sorted(
-        [p for p in Path(UPLOAD_DIR).glob(f"{device_id}_*.jpg")],
+        [p for p in UPLOAD_DIR.glob(f"{device_id}_*.jpg")],
         key=lambda p: p.stat().st_mtime,
         reverse=True,
     )
@@ -1352,8 +1356,12 @@ def get_last_capture(
     return {
         "filename": latest.name,
         "url": f"http://localhost:8000/uploads/{latest.name}",
-        "captured_at": datetime.fromtimestamp(latest.stat().st_mtime, tz=timezone.utc).isoformat(),
+        "captured_at": datetime.fromtimestamp(
+            latest.stat().st_mtime,
+            tz=timezone.utc,
+        ).isoformat(),
     }
+
 
 @app.get("/devices/{device_id}/last-capture-db", response_model=ScreenCaptureOut)
 def get_last_capture_db(
@@ -1362,6 +1370,7 @@ def get_last_capture_db(
     current_user: User = Depends(get_current_user),
 ):
     device = db.query(Device).filter(Device.id == device_id).first()
+
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
 
@@ -1386,6 +1395,7 @@ def get_last_capture_db(
 
     return capture
 
+
 @app.get("/devices/{device_id}/captures", response_model=list[ScreenCaptureOut])
 def get_device_captures(
     device_id: UUID,
@@ -1394,6 +1404,7 @@ def get_device_captures(
     current_user: User = Depends(get_current_user),
 ):
     device = db.query(Device).filter(Device.id == device_id).first()
+
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
 
@@ -1413,6 +1424,8 @@ def get_device_captures(
         .limit(limit)
         .all()
     )
+
+
 @app.get("/captures")
 def get_all_captures(
     limit: int = Query(50, ge=1, le=500),
@@ -1436,6 +1449,7 @@ def get_all_captures(
     captures = query.limit(limit).all()
 
     result = []
+
     for item in captures:
         device = db.query(Device).filter(Device.id == item.device_id).first()
 
@@ -1459,3 +1473,44 @@ def get_all_captures(
         )
 
     return result
+
+
+@app.get("/captures/{capture_id}")
+def get_capture_detail(
+    capture_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    capture = db.query(ScreenCapture).filter(ScreenCapture.id == capture_id).first()
+
+    if not capture:
+        raise HTTPException(status_code=404, detail="Capture not found")
+
+    if current_user.role == "viewer":
+        access = db.query(ViewerDeviceAccess).filter(
+            ViewerDeviceAccess.user_id == current_user.id,
+            ViewerDeviceAccess.device_id == capture.device_id,
+        ).first()
+
+        if not access:
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    device = db.query(Device).filter(Device.id == capture.device_id).first()
+
+    return {
+        "id": capture.id,
+        "device_id": str(capture.device_id),
+        "device_name": device.name if device else "Unknown",
+        "device_location": device.location if device else None,
+        "image_url": capture.image_url,
+        "visual_status": capture.visual_status,
+        "visual_reason": capture.visual_reason,
+        "compliance_status": capture.compliance_status,
+        "compliance_reason": capture.compliance_reason,
+        "similarity_score": capture.similarity_score,
+        "expected_media_type": capture.expected_media_type,
+        "expected_media_title": capture.expected_media_title,
+        "expected_media_url": capture.expected_media_url,
+        "created_at": capture.created_at.isoformat() if capture.created_at else None,
+    }
+

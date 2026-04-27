@@ -72,7 +72,8 @@ function isTimeAllowed(item: PlaylistItem, now: Date) {
 }
 
 function isPlayable(item: PlaylistItem, now: Date) {
-  if (!item.is_active) return false
+  if (item.is_active === false) return false
+  if (!item.media_url) return false
   if (!isDateAllowed(item, now)) return false
   if (!isTimeAllowed(item, now)) return false
   return true
@@ -114,6 +115,7 @@ export default function DevicePlayerPage() {
   const [currentTime, setCurrentTime] = useState(new Date())
   const [debugVisible, setDebugVisible] = useState(true)
   const [showControls, setShowControls] = useState(true)
+  const [mediaError, setMediaError] = useState('')
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -152,18 +154,32 @@ export default function DevicePlayerPage() {
   useEffect(() => {
     const refreshInterval = setInterval(() => {
       loadData()
-    }, 30000)
+    }, 15000)
 
     return () => clearInterval(refreshInterval)
   }, [id])
 
-  const playableItems = useMemo(() => {
-    const items = [...(playlist?.items || [])].sort(
-      (a, b) => a.order_index - b.order_index
-    )
+  const orderedItems = useMemo(() => {
+    return [...(playlist?.items || [])]
+      .filter((item) => item.media_url)
+      .sort((a, b) => a.order_index - b.order_index)
+  }, [playlist])
 
-    return items.filter((item) => isPlayable(item, currentTime))
-  }, [playlist, currentTime])
+  const scheduledPlayableItems = useMemo(() => {
+    return orderedItems.filter((item) => isPlayable(item, currentTime))
+  }, [orderedItems, currentTime])
+
+  const activeFallbackItems = useMemo(() => {
+    return orderedItems.filter((item) => item.is_active !== false)
+  }, [orderedItems])
+
+  const playableItems = useMemo(() => {
+    if (scheduledPlayableItems.length > 0) return scheduledPlayableItems
+
+    // Important pour la simulation :
+    // si les horaires bloquent, on affiche quand même les médias actifs.
+    return activeFallbackItems
+  }, [scheduledPlayableItems, activeFallbackItems])
 
   useEffect(() => {
     if (currentIndex >= playableItems.length) {
@@ -176,6 +192,7 @@ export default function DevicePlayerPage() {
 
   function goToNext() {
     if (playableItems.length === 0) return
+    setMediaError('')
     setCurrentIndex((prev) => (prev + 1) % playableItems.length)
   }
 
@@ -209,12 +226,16 @@ export default function DevicePlayerPage() {
 
     if (!currentItem) return
 
-    if (currentItem.media_type === 'image') {
-      const durationMs = Math.max(
-        1,
-        Number(currentItem.duration_seconds || 15)
-      ) * 1000
+    const durationMs =
+      Math.max(1, Number(currentItem.duration_seconds || 10)) * 1000
 
+    if (currentItem.media_type === 'image') {
+      timerRef.current = setTimeout(() => {
+        goToNext()
+      }, durationMs)
+    }
+
+    if (currentItem.media_type === 'video') {
       timerRef.current = setTimeout(() => {
         goToNext()
       }, durationMs)
@@ -228,6 +249,7 @@ export default function DevicePlayerPage() {
     }
   }, [
     currentItem?.id,
+    currentItem?.media_url,
     currentItem?.media_type,
     currentItem?.duration_seconds,
     playableItems.length,
@@ -237,25 +259,8 @@ export default function DevicePlayerPage() {
     goToNext()
   }
 
-  function handleVideoLoadedMetadata() {
-    if (!currentItem || currentItem.media_type !== 'video') return
-
-    const video = videoRef.current
-    if (!video) return
-
-    const configuredDuration = Number(currentItem.duration_seconds || 0)
-
-    if (
-      configuredDuration > 0 &&
-      video.duration &&
-      configuredDuration < video.duration
-    ) {
-      if (timerRef.current) clearTimeout(timerRef.current)
-
-      timerRef.current = setTimeout(() => {
-        goToNext()
-      }, configuredDuration * 1000)
-    }
+  function handleMediaError() {
+    setMediaError('Impossible de charger ce média.')
   }
 
   useEffect(() => {
@@ -322,25 +327,27 @@ export default function DevicePlayerPage() {
 
       {!currentItem ? (
         <div className="flex min-h-screen flex-col items-center justify-center px-6 text-center">
-          <h1 className="text-3xl font-bold">Aucune diffusion programmée</h1>
+          <h1 className="text-3xl font-bold">Aucun média dans la playlist</h1>
           <p className="mt-3 text-sm text-slate-300">
-            Aucun média actif pour l’heure actuelle.
+            Ajoute un média actif dans la playlist du device.
           </p>
           <p className="mt-2 text-xs text-slate-500">
-            Device: {device?.name || 'Unknown'} •{' '}
-            {currentTime.toLocaleTimeString()}
+            Device: {device?.name || 'Unknown'} • {currentTime.toLocaleTimeString()}
           </p>
         </div>
       ) : (
         <div className="flex min-h-screen items-center justify-center">
           {currentItem.media_type === 'image' ? (
             <img
+              key={currentItem.media_url}
               src={currentItem.media_url}
               alt={currentItem.title || 'media'}
-              className="max-h-screen max-w-full object-contain"
+              className="h-screen w-screen object-contain"
+              onError={handleMediaError}
             />
           ) : youtubeEmbed ? (
             <iframe
+              key={youtubeEmbed}
               src={youtubeEmbed}
               title={currentItem.title || 'video'}
               className="h-screen w-screen"
@@ -349,17 +356,24 @@ export default function DevicePlayerPage() {
             />
           ) : (
             <video
+              key={currentItem.media_url}
               ref={videoRef}
               src={currentItem.media_url}
-              className="max-h-screen max-w-full object-contain"
+              className="h-screen w-screen object-contain"
               autoPlay
               muted
               playsInline
               controls={false}
               onEnded={handleVideoEnded}
-              onLoadedMetadata={handleVideoLoadedMetadata}
+              onError={handleMediaError}
             />
           )}
+        </div>
+      )}
+
+      {mediaError && (
+        <div className="absolute left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-red-500/30 bg-red-500/20 px-6 py-4 text-red-100 backdrop-blur">
+          {mediaError}
         </div>
       )}
 
@@ -381,7 +395,17 @@ export default function DevicePlayerPage() {
             </div>
           </div>
 
-          <div className="mt-3 grid gap-2 md:grid-cols-4">
+          <div className="mt-3 grid gap-2 md:grid-cols-5">
+            <div className="rounded-xl bg-white/5 p-3">
+              <div className="text-xs text-slate-400">Tous les médias</div>
+              <div className="mt-1 font-medium">{orderedItems.length}</div>
+            </div>
+
+            <div className="rounded-xl bg-white/5 p-3">
+              <div className="text-xs text-slate-400">Médias programmés</div>
+              <div className="mt-1 font-medium">{scheduledPlayableItems.length}</div>
+            </div>
+
             <div className="rounded-xl bg-white/5 p-3">
               <div className="text-xs text-slate-400">Média actuel</div>
               <div className="mt-1 font-medium">
@@ -393,7 +417,7 @@ export default function DevicePlayerPage() {
               <div className="text-xs text-slate-400">Type / durée</div>
               <div className="mt-1 font-medium">
                 {currentItem
-                  ? `${currentItem.media_type} • ${currentItem.duration_seconds}s`
+                  ? `${currentItem.media_type} • ${currentItem.duration_seconds || 10}s`
                   : '-'}
               </div>
             </div>
@@ -406,25 +430,14 @@ export default function DevicePlayerPage() {
                   : '0/0'}
               </div>
             </div>
-
-            <div className="rounded-xl bg-white/5 p-3">
-              <div className="text-xs text-slate-400">Plage horaire</div>
-              <div className="mt-1 font-medium">
-                {currentItem
-                  ? `${currentItem.start_time || '00:00'} → ${
-                      currentItem.end_time || '23:59'
-                    }`
-                  : '-'}
-              </div>
-            </div>
           </div>
 
-          <div className="mt-3 text-xs text-slate-400">
-            Appuie sur <span className="font-semibold">D</span> pour afficher ou
-            masquer le panneau debug. Utilise{' '}
-            <span className="font-semibold">→</span> pour passer au média
-            suivant. Appuie sur <span className="font-semibold">Esc</span> pour
-            revenir à la page du device.
+          <div className="mt-3 break-all text-xs text-slate-400">
+            URL média : {currentItem?.media_url || '-'}
+          </div>
+
+          <div className="mt-2 text-xs text-slate-400">
+            D = masquer debug • → = média suivant • Esc = retour device
           </div>
         </div>
       )}

@@ -6,3 +6,4 @@ pydantic
 joblib
 pillow
 python-multipart
+opencv-python-headless

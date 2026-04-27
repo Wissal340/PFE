@@ -403,3 +403,10 @@ export async function getAllCaptures(limit = 50) {
 
   return parseJson(res)
 }
+export async function getCaptureById(id: string) {
+  const res = await fetch(`${API}/captures/${id}`, {
+    headers: authHeaders(),
+  })
+
+  return parseJson(res)
+}
