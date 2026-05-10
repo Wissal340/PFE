@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import { getDevice, getPlaylist } from '../../../../lib/api'
+import { getDevice, getPlaylist, simulateDeviceAnomaly } from '../../../../lib/api'
 
 type Device = {
   id: string
@@ -35,6 +35,8 @@ type Playlist = {
   created_at: string
   items: PlaylistItem[]
 }
+
+type SimulationMode = 'normal' | 'black_screen' | 'frozen' | 'wrong_content'
 
 function toMinutes(time?: string | null) {
   if (!time || !time.includes(':')) return null
@@ -116,9 +118,14 @@ export default function DevicePlayerPage() {
   const [debugVisible, setDebugVisible] = useState(true)
   const [showControls, setShowControls] = useState(true)
   const [mediaError, setMediaError] = useState('')
+  const [simulationMode, setSimulationMode] = useState<SimulationMode>('normal')
+  const [simulationLoading, setSimulationLoading] = useState(false)
+  const [pendingDetection, setPendingDetection] = useState(false)
+  const [hackedVideoUrl, setHackedVideoUrl] = useState('')
 
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const detectionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const videoRef = useRef<HTMLVideoElement | null>(null)
 
   async function loadData() {
@@ -137,6 +144,50 @@ export default function DevicePlayerPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  async function runSimulation(type: SimulationMode) {
+    if (!id || simulationLoading) return
+
+    if (detectionTimeoutRef.current) {
+      clearTimeout(detectionTimeoutRef.current)
+      detectionTimeoutRef.current = null
+    }
+
+    setSimulationMode(type)
+    setMediaError('')
+    setPendingDetection(true)
+    setSimulationLoading(true)
+
+    if (type === 'frozen') {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+        timerRef.current = null
+      }
+
+      if (videoRef.current) {
+        videoRef.current.pause()
+      }
+    }
+
+    if (type === 'normal') {
+      if (videoRef.current) {
+        videoRef.current.play().catch(() => {})
+      }
+    }
+
+    detectionTimeoutRef.current = setTimeout(async () => {
+      try {
+        await simulateDeviceAnomaly(id, type)
+      } catch (error) {
+        console.error(error)
+        setMediaError("Impossible d'envoyer l'alerte de simulation.")
+      } finally {
+        setPendingDetection(false)
+        setSimulationLoading(false)
+        detectionTimeoutRef.current = null
+      }
+    }, 10000)
   }
 
   useEffect(() => {
@@ -159,6 +210,14 @@ export default function DevicePlayerPage() {
     return () => clearInterval(refreshInterval)
   }, [id])
 
+  useEffect(() => {
+    return () => {
+      if (detectionTimeoutRef.current) {
+        clearTimeout(detectionTimeoutRef.current)
+      }
+    }
+  }, [])
+
   const orderedItems = useMemo(() => {
     return [...(playlist?.items || [])]
       .filter((item) => item.media_url)
@@ -175,9 +234,6 @@ export default function DevicePlayerPage() {
 
   const playableItems = useMemo(() => {
     if (scheduledPlayableItems.length > 0) return scheduledPlayableItems
-
-    // Important pour la simulation :
-    // si les horaires bloquent, on affiche quand même les médias actifs.
     return activeFallbackItems
   }, [scheduledPlayableItems, activeFallbackItems])
 
@@ -191,7 +247,9 @@ export default function DevicePlayerPage() {
     playableItems.length > 0 ? playableItems[currentIndex] : null
 
   function goToNext() {
+    if (simulationMode === 'frozen') return
     if (playableItems.length === 0) return
+
     setMediaError('')
     setCurrentIndex((prev) => (prev + 1) % playableItems.length)
   }
@@ -225,21 +283,16 @@ export default function DevicePlayerPage() {
     }
 
     if (!currentItem) return
+    if (simulationMode === 'frozen') return
+    if (simulationMode === 'black_screen') return
+    if (simulationMode === 'wrong_content') return
 
     const durationMs =
       Math.max(1, Number(currentItem.duration_seconds || 10)) * 1000
 
-    if (currentItem.media_type === 'image') {
-      timerRef.current = setTimeout(() => {
-        goToNext()
-      }, durationMs)
-    }
-
-    if (currentItem.media_type === 'video') {
-      timerRef.current = setTimeout(() => {
-        goToNext()
-      }, durationMs)
-    }
+    timerRef.current = setTimeout(() => {
+      goToNext()
+    }, durationMs)
 
     return () => {
       if (timerRef.current) {
@@ -253,6 +306,7 @@ export default function DevicePlayerPage() {
     currentItem?.media_type,
     currentItem?.duration_seconds,
     playableItems.length,
+    simulationMode,
   ])
 
   function handleVideoEnded() {
@@ -262,6 +316,20 @@ export default function DevicePlayerPage() {
   function handleMediaError() {
     setMediaError('Impossible de charger ce média.')
   }
+
+  useEffect(() => {
+    if (!videoRef.current) return
+
+    if (simulationMode === 'frozen') {
+      videoRef.current.pause()
+      return
+    }
+
+    if (simulationMode === 'normal') {
+      videoRef.current.play().catch(() => {})
+    }
+  }, [simulationMode, currentItem?.media_url])
+
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -280,7 +348,7 @@ export default function DevicePlayerPage() {
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [playableItems.length, id, router])
+  }, [playableItems.length, id, router, simulationMode])
 
   const youtubeEmbed = currentItem
     ? getYouTubeEmbedUrl(currentItem.media_url)
@@ -296,7 +364,7 @@ export default function DevicePlayerPage() {
 
   return (
     <div
-      className="relative min-h-screen bg-black text-white"
+      className="relative min-h-screen overflow-hidden bg-black text-white"
       onMouseMove={showPlayerControlsTemporarily}
       onClick={showPlayerControlsTemporarily}
     >
@@ -332,7 +400,8 @@ export default function DevicePlayerPage() {
             Ajoute un média actif dans la playlist du device.
           </p>
           <p className="mt-2 text-xs text-slate-500">
-            Device: {device?.name || 'Unknown'} • {currentTime.toLocaleTimeString()}
+            Device: {device?.name || 'Unknown'} •{' '}
+            {currentTime.toLocaleTimeString()}
           </p>
         </div>
       ) : (
@@ -371,6 +440,97 @@ export default function DevicePlayerPage() {
         </div>
       )}
 
+      {simulationMode === 'black_screen' && (
+        <div className="fixed inset-0 z-40 bg-black" />
+      )}
+
+      {simulationMode === 'wrong_content' && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black text-center text-white">
+          {hackedVideoUrl.trim() ? (
+            <video
+              src={hackedVideoUrl.trim()}
+              className="h-screen w-screen object-cover"
+              autoPlay
+              loop
+              muted
+              playsInline
+              onError={handleMediaError}
+            />
+          ) : (
+            <div className="rounded-3xl border border-red-400/30 bg-red-500/10 p-10 shadow-2xl">
+              <div className="text-5xl font-black uppercase tracking-wide text-red-400">
+                Hacked Content
+              </div>
+              <div className="mt-4 text-xl text-red-100">
+                Contenu non programmé simulé
+              </div>
+              <div className="mt-2 text-sm text-red-200/80">
+                Ajoute une URL vidéo pour simuler une diffusion piratée.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {showControls && (
+        <div className="fixed bottom-6 right-6 z-50 w-[290px] rounded-2xl border border-slate-700 bg-[#0f172a]/95 p-4 shadow-2xl backdrop-blur">
+          <div className="mb-3">
+            <div className="text-sm font-semibold text-white">
+              Test simulation IA
+            </div>
+            <div className="text-xs text-slate-400">
+              Mode test écran publicitaire
+            </div>
+          </div>
+
+          <input
+            value={hackedVideoUrl}
+            onChange={(e) => setHackedVideoUrl(e.target.value)}
+            placeholder="URL vidéo piratage"
+            className="mb-3 w-full rounded-xl border border-slate-700 bg-black/40 px-3 py-2 text-xs text-white outline-none placeholder:text-slate-500"
+          />
+
+          <div className="grid gap-2">
+            <button
+              disabled={simulationLoading}
+              onClick={() => runSimulation('normal')}
+              className="rounded-xl bg-green-600 px-4 py-2 text-sm text-white transition hover:bg-green-700 disabled:opacity-50"
+            >
+              Normal
+            </button>
+
+            <button
+              disabled={simulationLoading}
+              onClick={() => runSimulation('black_screen')}
+              className="rounded-xl bg-black px-4 py-2 text-sm text-white ring-1 ring-slate-600 transition hover:bg-slate-900 disabled:opacity-50"
+            >
+              Écran noir
+            </button>
+
+            <button
+              disabled={simulationLoading}
+              onClick={() => runSimulation('frozen')}
+              className="rounded-xl bg-orange-600 px-4 py-2 text-sm text-white transition hover:bg-orange-700 disabled:opacity-50"
+            >
+              Freeze
+            </button>
+
+            <button
+              disabled={simulationLoading}
+              onClick={() => runSimulation('wrong_content')}
+              className="rounded-xl bg-red-600 px-4 py-2 text-sm text-white transition hover:bg-red-700 disabled:opacity-50"
+            >
+              Contenu non programmé
+            </button>
+          </div>
+
+          <div className="mt-3 rounded-xl bg-white/5 px-3 py-2 text-xs text-slate-300">
+            Mode actuel :{' '}
+            <span className="font-semibold text-white">{simulationMode}</span>
+          </div>
+        </div>
+      )}
+
       {mediaError && (
         <div className="absolute left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-red-500/30 bg-red-500/20 px-6 py-4 text-red-100 backdrop-blur">
           {mediaError}
@@ -378,7 +538,7 @@ export default function DevicePlayerPage() {
       )}
 
       {debugVisible && (
-        <div className="absolute bottom-4 left-4 right-4 rounded-2xl bg-black/65 p-4 text-sm backdrop-blur">
+        <div className="absolute bottom-4 left-4 right-4 z-30 rounded-2xl bg-black/65 p-4 text-sm backdrop-blur">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <div className="font-semibold">
@@ -395,7 +555,7 @@ export default function DevicePlayerPage() {
             </div>
           </div>
 
-          <div className="mt-3 grid gap-2 md:grid-cols-5">
+          <div className="mt-3 grid gap-2 md:grid-cols-6">
             <div className="rounded-xl bg-white/5 p-3">
               <div className="text-xs text-slate-400">Tous les médias</div>
               <div className="mt-1 font-medium">{orderedItems.length}</div>
@@ -403,7 +563,9 @@ export default function DevicePlayerPage() {
 
             <div className="rounded-xl bg-white/5 p-3">
               <div className="text-xs text-slate-400">Médias programmés</div>
-              <div className="mt-1 font-medium">{scheduledPlayableItems.length}</div>
+              <div className="mt-1 font-medium">
+                {scheduledPlayableItems.length}
+              </div>
             </div>
 
             <div className="rounded-xl bg-white/5 p-3">
@@ -417,7 +579,9 @@ export default function DevicePlayerPage() {
               <div className="text-xs text-slate-400">Type / durée</div>
               <div className="mt-1 font-medium">
                 {currentItem
-                  ? `${currentItem.media_type} • ${currentItem.duration_seconds || 10}s`
+                  ? `${currentItem.media_type} • ${
+                      currentItem.duration_seconds || 10
+                    }s`
                   : '-'}
               </div>
             </div>
@@ -429,6 +593,11 @@ export default function DevicePlayerPage() {
                   ? `${currentIndex + 1}/${playableItems.length}`
                   : '0/0'}
               </div>
+            </div>
+
+            <div className="rounded-xl bg-white/5 p-3">
+              <div className="text-xs text-slate-400">Simulation</div>
+              <div className="mt-1 font-medium">{simulationMode}</div>
             </div>
           </div>
 

@@ -1,4 +1,4 @@
-'use client'
+"use client";
 
 import {
   LineChart,
@@ -9,126 +9,102 @@ import {
   ResponsiveContainer,
   Legend,
   CartesianGrid,
-} from 'recharts'
-import { useEffect, useMemo, useState } from 'react'
-import type { ReactNode } from 'react'
-import Link from 'next/link'
-import { useParams } from 'next/navigation'
+} from "recharts";
+import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
+import Link from "next/link";
+import { useParams } from "next/navigation";
 import {
   createWebSocket,
   getAiHistory,
   getAlerts,
   getDevice,
-  getDeviceCaptures,
-  getLastCapture,
   getLatestMetric,
   getMetrics,
-} from '../../../lib/api'
-import BroadcastStudio from './components/BroadcastStudio'
+} from "../../../lib/api";
+import BroadcastStudio from "./components/BroadcastStudio";
 
 type Device = {
-  id: string
-  name: string
-  location?: string | null
-  latitude?: number | null
-  longitude?: number | null
-  status?: string
-}
+  id: string;
+  name: string;
+  location?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  status?: string;
+};
 
 type Metric = {
-  id: number
-  device_id: string
-  cpu: number
-  ram: number
-  temp?: number | null
-  vlc_running: boolean
-  timestamp: string
-}
+  id: number;
+  device_id: string;
+  cpu: number;
+  ram: number;
+  temp?: number | null;
+  vlc_running: boolean;
+  timestamp: string;
+};
 
 type Alert = {
-  id: number
-  device_id: string
-  type: string
-  message: string
-  value?: number | null
-  threshold?: number | null
-  created_at: string
-}
+  id: number;
+  device_id: string;
+  type: string;
+  message: string;
+  value?: number | null;
+  threshold?: number | null;
+  created_at: string;
+};
 
 type AiPrediction = {
-  id: number
-  device_id: string
-  cpu: number
-  ram: number
-  temp: number
-  vlc_running: boolean
-  anomaly_score: number
-  prediction: 'normal' | 'warning' | 'critical' | 'unknown'
-  reason: string
-  created_at: string
-}
+  id: number;
+  device_id: string;
+  cpu: number;
+  ram: number;
+  temp: number;
+  vlc_running: boolean;
+  anomaly_score: number;
+  prediction: "normal" | "warning" | "critical" | "unknown";
+  reason: string;
+  created_at: string;
+};
 
 type ChartPoint = {
-  time: string
-  cpu: number
-  ram: number
-  temp: number
-}
+  time: string;
+  cpu: number;
+  ram: number;
+  temp: number;
+};
 
 type AiChartPoint = {
-  time: string
-  score: number
-}
+  time: string;
+  score: number;
+};
 
 type AiState = {
-  status: 'normal' | 'warning' | 'critical'
-  score: number
-  reason: string
-  updatedAt?: string | null
-}
+  status: "normal" | "warning" | "critical";
+  score: number;
+  reason: string;
+  updatedAt?: string | null;
+};
 
 type VisualState = {
-  status: 'normal' | 'black_screen' | 'frozen' | 'display_error'
-  reason: string
-  updatedAt?: string | null
-}
+  status: "normal" | "black_screen" | "frozen" | "display_error";
+  reason: string;
+  updatedAt?: string | null;
+};
 
 type ComplianceState = {
-  status: 'unknown' | 'compliant' | 'partially_compliant' | 'non_compliant'
-  reason: string
-  updatedAt?: string | null
-}
-
-type LastCapture = {
-  filename: string
-  url: string
-  captured_at: string
-}
-
-type DeviceCapture = {
-  id: number
-  device_id: string
-  image_path: string
-  image_url: string
-  visual_status: string
-  visual_reason?: string | null
-  compliance_status: string
-  compliance_reason?: string | null
-  similarity_score?: number | null
-  expected_media_type?: string | null
-  expected_media_title?: string | null
-  expected_media_url?: string | null
-  created_at: string
-}
+  status: "unknown" | "compliant" | "partially_compliant" | "non_compliant";
+  reason: string;
+  updatedAt?: string | null;
+};
 
 function MetricCard({
   label,
   value,
   subValue,
 }: {
-  label: string
-  value: string
-  subValue?: string
+  label: string;
+  value: string;
+  subValue?: string;
 }) {
   return (
     <div className="group rounded-3xl border border-slate-800 bg-[#111827]/95 p-5 shadow-[0_10px_40px_rgba(0,0,0,0.35)] transition duration-300 hover:-translate-y-1 hover:border-blue-500/40 hover:shadow-[0_20px_50px_rgba(37,99,235,0.12)]">
@@ -139,7 +115,7 @@ function MetricCard({
       {subValue && <p className="mt-2 text-xs text-slate-500">{subValue}</p>}
       <div className="mt-4 h-1 w-16 rounded-full bg-gradient-to-r from-blue-500 to-cyan-400 opacity-70 transition group-hover:w-24" />
     </div>
-  )
+  );
 }
 
 function CustomTooltip({
@@ -147,11 +123,11 @@ function CustomTooltip({
   payload,
   label,
 }: {
-  active?: boolean
-  payload?: any[]
-  label?: string
+  active?: boolean;
+  payload?: any[];
+  label?: string;
 }) {
-  if (!active || !payload || !payload.length) return null
+  if (!active || !payload || !payload.length) return null;
 
   return (
     <div className="rounded-2xl border border-slate-700 bg-[#0f172a] p-3 shadow-2xl">
@@ -167,7 +143,7 @@ function CustomTooltip({
         ))}
       </div>
     </div>
-  )
+  );
 }
 
 function SectionCard({
@@ -176,10 +152,10 @@ function SectionCard({
   children,
   right,
 }: {
-  title: string
-  subtitle?: string
-  children: ReactNode
-  right?: ReactNode
+  title: string;
+  subtitle?: string;
+  children: ReactNode;
+  right?: ReactNode;
 }) {
   return (
     <div className="rounded-3xl border border-slate-800 bg-[#111827]/95 p-6 shadow-[0_10px_40px_rgba(0,0,0,0.35)]">
@@ -192,245 +168,240 @@ function SectionCard({
       </div>
       {children}
     </div>
-  )
+  );
 }
 
 function getAiStatus(alerts: Alert[], aiHistory: AiPrediction[]): AiState {
-  const latestPrediction = aiHistory[0]
+  const latestPrediction = aiHistory[0];
   if (latestPrediction) {
     const status =
-      latestPrediction.prediction === 'critical'
-        ? 'critical'
-        : latestPrediction.prediction === 'warning'
-        ? 'warning'
-        : 'normal'
+      latestPrediction.prediction === "critical"
+        ? "critical"
+        : latestPrediction.prediction === "warning"
+          ? "warning"
+          : "normal";
 
     return {
       status,
       score: Number(latestPrediction.anomaly_score ?? 0),
-      reason: latestPrediction.reason || 'Analyse AI disponible',
+      reason: latestPrediction.reason || "Analyse AI disponible",
       updatedAt: latestPrediction.created_at,
-    }
+    };
   }
 
-  const latestAiAlert = alerts.find((alert) => alert.type === 'AI')
+  const latestAiAlert = alerts.find((alert) => alert.type === "AI");
   if (!latestAiAlert) {
     return {
-      status: 'normal',
+      status: "normal",
       score: 0,
-      reason: 'Aucune anomalie détectée',
+      reason: "Aucune anomalie détectée",
       updatedAt: null,
-    }
+    };
   }
 
-  const score = Number(latestAiAlert.value ?? 0)
+  const score = Number(latestAiAlert.value ?? 0);
 
   if (score >= 0.75) {
     return {
-      status: 'critical',
+      status: "critical",
       score,
       reason: latestAiAlert.message,
       updatedAt: latestAiAlert.created_at,
-    }
+    };
   }
 
   if (score >= 0.45) {
     return {
-      status: 'warning',
+      status: "warning",
       score,
       reason: latestAiAlert.message,
       updatedAt: latestAiAlert.created_at,
-    }
+    };
   }
 
   return {
-    status: 'normal',
+    status: "normal",
     score,
     reason: latestAiAlert.message,
     updatedAt: latestAiAlert.created_at,
-  }
+  };
 }
 
 function getVisualStatus(alerts: Alert[]): VisualState {
-  const visualAlert = alerts.find((alert) => alert.type === 'VISUAL')
+  const visualAlert = alerts.find((alert) => alert.type === "VISUAL");
 
   if (!visualAlert) {
     return {
-      status: 'normal',
-      reason: 'Aucune anomalie visuelle détectée',
+      status: "normal",
+      reason: "Aucune anomalie visuelle détectée",
       updatedAt: null,
-    }
+    };
   }
 
-  const msg = visualAlert.message.toLowerCase()
+  const msg = visualAlert.message.toLowerCase();
 
-  if (msg.includes('black_screen')) {
+  if (msg.includes("black_screen")) {
     return {
-      status: 'black_screen',
+      status: "black_screen",
       reason: visualAlert.message,
       updatedAt: visualAlert.created_at,
-    }
+    };
   }
 
-  if (msg.includes('frozen')) {
+  if (msg.includes("frozen")) {
     return {
-      status: 'frozen',
+      status: "frozen",
       reason: visualAlert.message,
       updatedAt: visualAlert.created_at,
-    }
+    };
   }
 
-  if (msg.includes('display_error')) {
+  if (msg.includes("display_error")) {
     return {
-      status: 'display_error',
+      status: "display_error",
       reason: visualAlert.message,
       updatedAt: visualAlert.created_at,
-    }
+    };
   }
 
   return {
-    status: 'normal',
+    status: "normal",
     reason: visualAlert.message,
     updatedAt: visualAlert.created_at,
-  }
+  };
 }
 
 function getComplianceStatus(alerts: Alert[]): ComplianceState {
-  const complianceAlert = alerts.find((alert) => alert.type === 'COMPLIANCE')
+  const complianceAlert = alerts.find((alert) => alert.type === "COMPLIANCE");
 
   if (!complianceAlert) {
     return {
-      status: 'compliant',
-      reason: 'Aucune non-conformité détectée',
+      status: "compliant",
+      reason: "Aucune non-conformité détectée",
       updatedAt: null,
-    }
+    };
   }
 
   return {
-    status: 'non_compliant',
+    status: "non_compliant",
     reason: complianceAlert.message,
     updatedAt: complianceAlert.created_at,
-  }
+  };
 }
 
-function getAiBadgeClass(status: AiState['status']) {
-  if (status === 'critical') {
-    return 'border-red-500/30 bg-red-500/15 text-red-300'
+function getAiBadgeClass(status: AiState["status"]) {
+  if (status === "critical") {
+    return "border-red-500/30 bg-red-500/15 text-red-300";
   }
-  if (status === 'warning') {
-    return 'border-orange-500/30 bg-orange-500/15 text-orange-300'
+  if (status === "warning") {
+    return "border-orange-500/30 bg-orange-500/15 text-orange-300";
   }
-  return 'border-green-500/30 bg-green-500/15 text-green-300'
+  return "border-green-500/30 bg-green-500/15 text-green-300";
 }
 
-function getVisualBadgeClass(status: VisualState['status']) {
-  if (status === 'black_screen') {
-    return 'border-red-500/30 bg-red-500/15 text-red-300'
+function getVisualBadgeClass(status: VisualState["status"]) {
+  if (status === "black_screen") {
+    return "border-red-500/30 bg-red-500/15 text-red-300";
   }
-  if (status === 'frozen') {
-    return 'border-orange-500/30 bg-orange-500/15 text-orange-300'
+  if (status === "frozen") {
+    return "border-orange-500/30 bg-orange-500/15 text-orange-300";
   }
-  if (status === 'display_error') {
-    return 'border-violet-500/30 bg-violet-500/15 text-violet-300'
+  if (status === "display_error") {
+    return "border-violet-500/30 bg-violet-500/15 text-violet-300";
   }
-  return 'border-green-500/30 bg-green-500/15 text-green-300'
+  return "border-green-500/30 bg-green-500/15 text-green-300";
 }
 
-function getComplianceBadgeClass(status: ComplianceState['status']) {
-  if (status === 'non_compliant') {
-    return 'border-red-500/30 bg-red-500/15 text-red-300'
+function getComplianceBadgeClass(status: ComplianceState["status"]) {
+  if (status === "non_compliant") {
+    return "border-red-500/30 bg-red-500/15 text-red-300";
   }
-  if (status === 'partially_compliant') {
-    return 'border-orange-500/30 bg-orange-500/15 text-orange-300'
+  if (status === "partially_compliant") {
+    return "border-orange-500/30 bg-orange-500/15 text-orange-300";
   }
-  return 'border-green-500/30 bg-green-500/15 text-green-300'
+  return "border-green-500/30 bg-green-500/15 text-green-300";
 }
 
 function getAlertBadge(type: string) {
-  if (type === 'CPU') return 'border-orange-500/30 bg-orange-500/15 text-orange-300'
-  if (type === 'TEMP') return 'border-red-500/30 bg-red-500/15 text-red-300'
-  if (type === 'VLC') return 'border-violet-500/30 bg-violet-500/15 text-violet-300'
-  if (type === 'AI') return 'border-cyan-500/30 bg-cyan-500/15 text-cyan-300'
-  if (type === 'VISUAL') return 'border-fuchsia-500/30 bg-fuchsia-500/15 text-fuchsia-300'
-  if (type === 'COMPLIANCE') return 'border-amber-500/30 bg-amber-500/15 text-amber-300'
-  return 'border-slate-600 bg-slate-700/40 text-slate-300'
+  if (type === "CPU")
+    return "border-orange-500/30 bg-orange-500/15 text-orange-300";
+  if (type === "TEMP") return "border-red-500/30 bg-red-500/15 text-red-300";
+  if (type === "VLC")
+    return "border-violet-500/30 bg-violet-500/15 text-violet-300";
+  if (type === "AI") return "border-cyan-500/30 bg-cyan-500/15 text-cyan-300";
+  if (type === "VISUAL")
+    return "border-fuchsia-500/30 bg-fuchsia-500/15 text-fuchsia-300";
+  if (type === "COMPLIANCE")
+    return "border-amber-500/30 bg-amber-500/15 text-amber-300";
+  return "border-slate-600 bg-slate-700/40 text-slate-300";
 }
 
-function getPredictionBadge(prediction: AiPrediction['prediction']) {
-  if (prediction === 'critical') {
-    return 'border-red-500/30 bg-red-500/15 text-red-300'
+function getPredictionBadge(prediction: AiPrediction["prediction"]) {
+  if (prediction === "critical") {
+    return "border-red-500/30 bg-red-500/15 text-red-300";
   }
-  if (prediction === 'warning') {
-    return 'border-orange-500/30 bg-orange-500/15 text-orange-300'
+  if (prediction === "warning") {
+    return "border-orange-500/30 bg-orange-500/15 text-orange-300";
   }
-  if (prediction === 'normal') {
-    return 'border-green-500/30 bg-green-500/15 text-green-300'
+  if (prediction === "normal") {
+    return "border-green-500/30 bg-green-500/15 text-green-300";
   }
-  return 'border-slate-600 bg-slate-700/40 text-slate-300'
+  return "border-slate-600 bg-slate-700/40 text-slate-300";
 }
 
 export default function DeviceDetailPage() {
-  const params = useParams()
-  const id = params?.id as string
+  const params = useParams();
+  const id = params?.id as string;
 
-  const [lastCapture, setLastCapture] = useState<LastCapture | null>(null)
-  const [device, setDevice] = useState<Device | null>(null)
-  const [latestMetric, setLatestMetric] = useState<Metric | null>(null)
-  const [metrics, setMetrics] = useState<Metric[]>([])
-  const [alerts, setAlerts] = useState<Alert[]>([])
-  const [aiHistory, setAiHistory] = useState<AiPrediction[]>([])
-  const [chartData, setChartData] = useState<ChartPoint[]>([])
-  const [aiChartData, setAiChartData] = useState<AiChartPoint[]>([])
-  const [captures, setCaptures] = useState<DeviceCapture[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [liveStatus, setLiveStatus] = useState('')
-  const [showAllMetrics, setShowAllMetrics] = useState(false)
-  const [showAllAlerts, setShowAllAlerts] = useState(false)
-  const [showAllAi, setShowAllAi] = useState(false)
-  const [showAllCaptures, setShowAllCaptures] = useState(false)
+  const [device, setDevice] = useState<Device | null>(null);
+  const [latestMetric, setLatestMetric] = useState<Metric | null>(null);
+  const [metrics, setMetrics] = useState<Metric[]>([]);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [aiHistory, setAiHistory] = useState<AiPrediction[]>([]);
+  const [chartData, setChartData] = useState<ChartPoint[]>([]);
+  const [aiChartData, setAiChartData] = useState<AiChartPoint[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [liveStatus, setLiveStatus] = useState("");
+  const [showAllMetrics, setShowAllMetrics] = useState(false);
+  const [showAllAlerts, setShowAllAlerts] = useState(false);
+  const [showAllAi, setShowAllAi] = useState(false);
 
   async function loadData() {
-    if (!id) return
+    if (!id) return;
 
     try {
-      setError('')
+      setError("");
 
-      const [
-        deviceData,
-        latestData,
-        metricsData,
-        alertsData,
-        aiData,
-        captureData,
-        capturesData,
-      ] = await Promise.all([
-        getDevice(id),
-        getLatestMetric(id).catch(() => null),
-        getMetrics(id, 20).catch(() => []),
-        getAlerts(id).catch(() => []),
-        getAiHistory(id, 30).catch(() => []),
-        getLastCapture(id).catch(() => null),
-        getDeviceCaptures(id, 20).catch(() => []),
-      ])
+      const [deviceData, latestData, metricsData, alertsData, aiData] =
+        await Promise.all([
+          getDevice(id),
+          getLatestMetric(id).catch(() => null),
+          getMetrics(id, 20).catch(() => []),
+          getAlerts(id).catch(() => []),
+          getAiHistory(id, 30).catch(() => []),
+        ]);
 
-      const currentDevice = (deviceData as Device | null) || null
-      const latest = (latestData as Metric | null) || null
-      const metricsList = Array.isArray(metricsData) ? (metricsData as Metric[]) : []
-      const alertsList = Array.isArray(alertsData) ? (alertsData as Alert[]) : []
-      const aiList = Array.isArray(aiData) ? (aiData as AiPrediction[]) : []
+      const currentDevice = (deviceData as Device | null) || null;
+      const latest = (latestData as Metric | null) || null;
+      const metricsList = Array.isArray(metricsData)
+        ? (metricsData as Metric[])
+        : [];
+      const alertsList = Array.isArray(alertsData)
+        ? (alertsData as Alert[])
+        : [];
+      const aiList = Array.isArray(aiData) ? (aiData as AiPrediction[]) : [];
 
-      setDevice(currentDevice)
-      setLatestMetric(latest)
-      setMetrics(metricsList)
-      setAlerts(alertsList)
-      setAiHistory(aiList)
-      setLastCapture((captureData as LastCapture | null) || null)
-      setCaptures(Array.isArray(capturesData) ? (capturesData as DeviceCapture[]) : [])
+      setDevice(currentDevice);
+      setLatestMetric(latest);
+      setMetrics(metricsList);
+      setAlerts(alertsList);
+      setAiHistory(aiList);
 
       const sortedMetrics = [...metricsList].sort(
-        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-      )
+        (a, b) =>
+          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+      );
 
       setChartData(
         sortedMetrics.map((m) => ({
@@ -438,39 +409,40 @@ export default function DeviceDetailPage() {
           cpu: m.cpu,
           ram: m.ram,
           temp: m.temp ?? 0,
-        }))
-      )
+        })),
+      );
 
       const sortedAi = [...aiList].sort(
-        (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-      )
+        (a, b) =>
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+      );
 
       setAiChartData(
         sortedAi.map((item) => ({
           time: new Date(item.created_at).toLocaleTimeString(),
           score: Number(item.anomaly_score ?? 0),
-        }))
-      )
+        })),
+      );
     } catch (err) {
-      console.error(err)
-      setError('Impossible de charger les détails du device')
+      console.error(err);
+      setError("Impossible de charger les détails du device");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   useEffect(() => {
-    if (!id) return
-    loadData()
-  }, [id])
+    if (!id) return;
+    loadData();
+  }, [id]);
 
   useEffect(() => {
-    if (!id) return
+    if (!id) return;
 
     const socket = createWebSocket((message) => {
-      if (message?.type === 'metric_created') {
-        const payload = message.payload
-        if (payload.device_id !== id) return
+      if (message?.type === "metric_created") {
+        const payload = message.payload;
+        if (payload.device_id !== id) return;
 
         const newMetric: Metric = {
           id: payload.id ?? Date.now(),
@@ -480,10 +452,10 @@ export default function DeviceDetailPage() {
           temp: payload.temp,
           vlc_running: payload.vlc_running,
           timestamp: payload.timestamp,
-        }
+        };
 
-        setLatestMetric(newMetric)
-        setMetrics((prev) => [newMetric, ...prev].slice(0, 20))
+        setLatestMetric(newMetric);
+        setMetrics((prev) => [newMetric, ...prev].slice(0, 20));
 
         setChartData((prev) => [
           ...prev.slice(-19),
@@ -493,7 +465,7 @@ export default function DeviceDetailPage() {
             ram: payload.ram,
             temp: payload.temp ?? 0,
           },
-        ])
+        ]);
 
         if (payload.ai) {
           const newAi: AiPrediction = {
@@ -504,38 +476,28 @@ export default function DeviceDetailPage() {
             temp: payload.temp ?? 0,
             vlc_running: payload.vlc_running,
             anomaly_score: Number(payload.ai.anomaly_score ?? 0),
-            prediction: payload.ai.prediction ?? 'unknown',
-            reason: payload.ai.reason ?? 'AI unavailable',
+            prediction: payload.ai.prediction ?? "unknown",
+            reason: payload.ai.reason ?? "AI unavailable",
             created_at: payload.ai.created_at ?? new Date().toISOString(),
-          }
+          };
 
-          setAiHistory((prev) => [newAi, ...prev].slice(0, 30))
+          setAiHistory((prev) => [newAi, ...prev].slice(0, 30));
           setAiChartData((prev) => [
             ...prev.slice(-29),
             {
               time: new Date(newAi.created_at).toLocaleTimeString(),
               score: Number(newAi.anomaly_score ?? 0),
             },
-          ])
+          ]);
         }
 
-        getLastCapture(id)
-          .then((data) => setLastCapture(data as LastCapture))
-          .catch(() => {})
-
-        getDeviceCaptures(id, 20)
-          .then((data) =>
-            setCaptures(Array.isArray(data) ? (data as DeviceCapture[]) : [])
-          )
-          .catch(() => {})
-
-        setLiveStatus('Nouvelle métrique reçue')
-        setTimeout(() => setLiveStatus(''), 2500)
+        setLiveStatus("Nouvelle métrique reçue");
+        setTimeout(() => setLiveStatus(""), 2500);
       }
 
-      if (message?.type === 'alert_created') {
-        const payload = message.payload
-        if (payload.device_id !== id) return
+      if (message?.type === "alert_created") {
+        const payload = message.payload;
+        if (payload.device_id !== id) return;
 
         const newAlert: Alert = {
           id: payload.id,
@@ -545,35 +507,31 @@ export default function DeviceDetailPage() {
           value: payload.value,
           threshold: payload.threshold,
           created_at: payload.created_at,
-        }
+        };
 
-        setAlerts((prev) => [newAlert, ...prev])
+        setAlerts((prev) => [newAlert, ...prev]);
 
-        getDeviceCaptures(id, 20)
-          .then((data) =>
-            setCaptures(Array.isArray(data) ? (data as DeviceCapture[]) : [])
-          )
-          .catch(() => {})
-
-        setLiveStatus(`Nouvelle alerte: ${payload.type}`)
-        setTimeout(() => setLiveStatus(''), 3000)
+        setLiveStatus(`Nouvelle alerte: ${payload.type}`);
+        setTimeout(() => setLiveStatus(""), 3000);
       }
-    })
+    });
 
     return () => {
-      socket.close()
-    }
-  }, [id])
+      socket.close();
+    };
+  }, [id]);
 
-  const isOnline = useMemo(() => device?.status === 'online', [device])
-  const aiState = useMemo(() => getAiStatus(alerts, aiHistory), [alerts, aiHistory])
-  const visualState = useMemo(() => getVisualStatus(alerts), [alerts])
-  const complianceState = useMemo(() => getComplianceStatus(alerts), [alerts])
+  const isOnline = useMemo(() => device?.status === "online", [device]);
+  const aiState = useMemo(
+    () => getAiStatus(alerts, aiHistory),
+    [alerts, aiHistory],
+  );
+  const visualState = useMemo(() => getVisualStatus(alerts), [alerts]);
+  const complianceState = useMemo(() => getComplianceStatus(alerts), [alerts]);
 
-  const visibleMetrics = showAllMetrics ? metrics : metrics.slice(0, 5)
-  const visibleAlerts = showAllAlerts ? alerts : alerts.slice(0, 5)
-  const visibleAi = showAllAi ? aiHistory : aiHistory.slice(0, 5)
-  const visibleCaptures = showAllCaptures ? captures : captures.slice(0, 6)
+  const visibleMetrics = showAllMetrics ? metrics : metrics.slice(0, 5);
+  const visibleAlerts = showAllAlerts ? alerts : alerts.slice(0, 5);
+  const visibleAi = showAllAi ? aiHistory : aiHistory.slice(0, 5);
 
   if (loading) {
     return (
@@ -582,7 +540,7 @@ export default function DeviceDetailPage() {
           Chargement...
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -631,11 +589,11 @@ export default function DeviceDetailPage() {
                     Device details
                   </p>
                   <h1 className="mt-3 text-4xl font-bold tracking-tight text-white md:text-5xl">
-                    {device?.name || 'Unknown Screen'}
+                    {device?.name || "Unknown Screen"}
                   </h1>
 
                   <p className="mt-3 text-base text-slate-300">
-                    {device?.location || 'Sans localisation'}
+                    {device?.location || "Sans localisation"}
                   </p>
                 </div>
 
@@ -645,26 +603,36 @@ export default function DeviceDetailPage() {
                       Statut live
                     </div>
                     <div className="mt-2 text-2xl font-semibold text-white">
-                      {isOnline ? 'Actif' : 'Inactif'}
+                      {isOnline ? "Actif" : "Inactif"}
                     </div>
                   </div>
 
-                  <div className={`rounded-2xl border p-4 ${getAiBadgeClass(aiState.status)}`}>
+                  <div
+                    className={`rounded-2xl border p-4 ${getAiBadgeClass(aiState.status)}`}
+                  >
                     <div className="text-xs uppercase tracking-wide">AI</div>
                     <div className="mt-2 text-xl font-semibold capitalize text-white">
                       {aiState.status}
                     </div>
                   </div>
 
-                  <div className={`rounded-2xl border p-4 ${getVisualBadgeClass(visualState.status)}`}>
-                    <div className="text-xs uppercase tracking-wide">Visual</div>
+                  <div
+                    className={`rounded-2xl border p-4 ${getVisualBadgeClass(visualState.status)}`}
+                  >
+                    <div className="text-xs uppercase tracking-wide">
+                      Visual
+                    </div>
                     <div className="mt-2 text-xl font-semibold capitalize text-white">
                       {visualState.status}
                     </div>
                   </div>
 
-                  <div className={`rounded-2xl border p-4 ${getComplianceBadgeClass(complianceState.status)}`}>
-                    <div className="text-xs uppercase tracking-wide">Compliance</div>
+                  <div
+                    className={`rounded-2xl border p-4 ${getComplianceBadgeClass(complianceState.status)}`}
+                  >
+                    <div className="text-xs uppercase tracking-wide">
+                      Compliance
+                    </div>
                     <div className="mt-2 text-xl font-semibold capitalize text-white">
                       {complianceState.status}
                     </div>
@@ -689,17 +657,19 @@ export default function DeviceDetailPage() {
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
             <MetricCard
               label="CPU Usage"
-              value={latestMetric ? `${latestMetric.cpu}%` : '-'}
+              value={latestMetric ? `${latestMetric.cpu}%` : "-"}
               subValue="Usage processeur"
             />
             <MetricCard
               label="RAM Usage"
-              value={latestMetric ? `${latestMetric.ram}%` : '-'}
+              value={latestMetric ? `${latestMetric.ram}%` : "-"}
               subValue="Utilisation mémoire"
             />
             <MetricCard
               label="Température"
-              value={latestMetric?.temp != null ? `${latestMetric.temp}°C` : '-'}
+              value={
+                latestMetric?.temp != null ? `${latestMetric.temp}°C` : "-"
+              }
               subValue="Capteur thermique"
             />
             <MetricCard
@@ -707,9 +677,9 @@ export default function DeviceDetailPage() {
               value={
                 latestMetric
                   ? latestMetric.vlc_running
-                    ? 'Running'
-                    : 'Stopped'
-                  : '-'
+                    ? "Running"
+                    : "Stopped"
+                  : "-"
               }
               subValue="État du player"
             />
@@ -729,14 +699,17 @@ export default function DeviceDetailPage() {
             <SectionCard
               title="Analyse AI"
               right={
-                <span className={`rounded-full border px-3 py-1 text-xs font-medium capitalize ${getAiBadgeClass(aiState.status)}`}>
+                <span
+                  className={`rounded-full border px-3 py-1 text-xs font-medium capitalize ${getAiBadgeClass(aiState.status)}`}
+                >
                   {aiState.status}
                 </span>
               }
             >
               <div className="space-y-3">
                 <div className="rounded-2xl border border-slate-800 bg-[#0f172a] p-4 text-sm text-slate-300">
-                  <b className="text-white">Score:</b> {aiState.score.toFixed(2)}
+                  <b className="text-white">Score:</b>{" "}
+                  {aiState.score.toFixed(2)}
                 </div>
                 <div className="rounded-2xl border border-slate-800 bg-[#0f172a] p-4 text-sm text-slate-300">
                   <b className="text-white">Reason:</b> {aiState.reason}
@@ -747,7 +720,9 @@ export default function DeviceDetailPage() {
             <SectionCard
               title="Analyse visuelle"
               right={
-                <span className={`rounded-full border px-3 py-1 text-xs font-medium capitalize ${getVisualBadgeClass(visualState.status)}`}>
+                <span
+                  className={`rounded-full border px-3 py-1 text-xs font-medium capitalize ${getVisualBadgeClass(visualState.status)}`}
+                >
                   {visualState.status}
                 </span>
               }
@@ -765,7 +740,9 @@ export default function DeviceDetailPage() {
             <SectionCard
               title="Conformité diffusion"
               right={
-                <span className={`rounded-full border px-3 py-1 text-xs font-medium capitalize ${getComplianceBadgeClass(complianceState.status)}`}>
+                <span
+                  className={`rounded-full border px-3 py-1 text-xs font-medium capitalize ${getComplianceBadgeClass(complianceState.status)}`}
+                >
                   {complianceState.status}
                 </span>
               }
@@ -780,176 +757,6 @@ export default function DeviceDetailPage() {
               </div>
             </SectionCard>
           </div>
-
-          <SectionCard
-            title="Dernière capture reçue"
-            subtitle="Aperçu réel du contenu actuellement remonté par l’écran"
-            right={
-              lastCapture ? (
-                <span className="rounded-full border border-slate-700 bg-white/5 px-3 py-1 text-xs text-slate-300">
-                  {new Date(lastCapture.captured_at).toLocaleString()}
-                </span>
-              ) : undefined
-            }
-          >
-            {!lastCapture ? (
-              <div className="rounded-2xl border border-slate-800 bg-[#0f172a] p-4 text-sm text-slate-500">
-                Aucune capture disponible.
-              </div>
-            ) : (
-              <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-                <div className="overflow-hidden rounded-3xl border border-slate-800 bg-[#0f172a]">
-                  <img
-                    src={lastCapture.url}
-                    alt="Dernière capture"
-                    className="h-full max-h-[420px] w-full object-contain bg-black"
-                  />
-                </div>
-
-                <div className="space-y-4">
-                  <div className="rounded-2xl border border-slate-800 bg-[#0f172a] p-4">
-                    <div className="text-sm text-slate-400">Capture time</div>
-                    <div className="mt-2 text-sm text-slate-100">
-                      {new Date(lastCapture.captured_at).toLocaleString()}
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-800 bg-[#0f172a] p-4">
-                    <div className="text-sm text-slate-400">Visual status</div>
-                    <div className={`mt-2 inline-flex rounded-full border px-3 py-1 text-xs font-medium capitalize ${getVisualBadgeClass(visualState.status)}`}>
-                      {visualState.status}
-                    </div>
-                    <div className="mt-3 text-sm text-slate-300">{visualState.reason}</div>
-                  </div>
-
-                  <div className="rounded-2xl border border-slate-800 bg-[#0f172a] p-4">
-                    <div className="text-sm text-slate-400">Compliance status</div>
-                    <div className={`mt-2 inline-flex rounded-full border px-3 py-1 text-xs font-medium capitalize ${getComplianceBadgeClass(complianceState.status)}`}>
-                      {complianceState.status}
-                    </div>
-                    <div className="mt-3 text-sm text-slate-300">{complianceState.reason}</div>
-                  </div>
-
-                  <a
-                    href={lastCapture.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex rounded-xl border border-slate-700 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10"
-                  >
-                    Ouvrir la capture
-                  </a>
-                </div>
-              </div>
-            )}
-          </SectionCard>
-
-          <SectionCard
-            title="Historique des captures"
-            subtitle="Captures enregistrées avec analyse visuelle et conformité"
-            right={
-              <span className="rounded-full border border-slate-700 bg-white/5 px-3 py-1 text-xs text-slate-300">
-                {captures.length} capture(s)
-              </span>
-            }
-          >
-            {captures.length === 0 ? (
-              <div className="rounded-2xl border border-slate-800 bg-[#0f172a] p-4 text-sm text-slate-500">
-                Aucun historique de capture disponible.
-              </div>
-            ) : (
-              <>
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {visibleCaptures.map((capture) => (
-                    <div
-                      key={capture.id}
-                      className="overflow-hidden rounded-3xl border border-slate-800 bg-[#0f172a] transition hover:border-blue-500/30 hover:bg-[#101a31]"
-                    >
-                      <div className="aspect-video bg-black">
-                        <img
-                          src={capture.image_url}
-                          alt={`Capture ${capture.id}`}
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-
-                      <div className="p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="text-xs text-slate-400">
-                            {new Date(capture.created_at).toLocaleString()}
-                          </div>
-
-                          <a
-                            href={capture.image_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-xs text-blue-300 hover:text-blue-200"
-                          >
-                            Ouvrir
-                          </a>
-                        </div>
-
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <span
-                            className={`rounded-full border px-3 py-1 text-xs font-medium capitalize ${getVisualBadgeClass(
-                              (capture.visual_status as VisualState['status']) || 'normal'
-                            )}`}
-                          >
-                            {capture.visual_status}
-                          </span>
-
-                          <span
-                            className={`rounded-full border px-3 py-1 text-xs font-medium capitalize ${getComplianceBadgeClass(
-                              (capture.compliance_status as ComplianceState['status']) || 'unknown'
-                            )}`}
-                          >
-                            {capture.compliance_status}
-                          </span>
-                        </div>
-
-                        <div className="mt-3 space-y-2 text-sm">
-                          <div className="text-slate-300">
-                            <span className="text-slate-400">Visual:</span>{' '}
-                            {capture.visual_reason || '-'}
-                          </div>
-
-                          <div className="text-slate-300">
-                            <span className="text-slate-400">Compliance:</span>{' '}
-                            {capture.compliance_reason || '-'}
-                          </div>
-
-                          <div className="text-slate-300">
-                            <span className="text-slate-400">Similarity:</span>{' '}
-                            {capture.similarity_score != null
-                              ? Number(capture.similarity_score).toFixed(2)
-                              : '-'}
-                          </div>
-
-                          <div className="text-slate-300">
-                            <span className="text-slate-400">Expected:</span>{' '}
-                            {capture.expected_media_title || 'Sans titre'}
-                            {capture.expected_media_type
-                              ? ` (${capture.expected_media_type})`
-                              : ''}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {captures.length > 6 && (
-                  <div className="pt-4">
-                    <button
-                      onClick={() => setShowAllCaptures((prev) => !prev)}
-                      className="rounded-xl border border-slate-700 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10"
-                    >
-                      {showAllCaptures ? 'Afficher moins' : 'Afficher plus'}
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-          </SectionCard>
 
           <BroadcastStudio deviceId={id} />
 
@@ -974,8 +781,14 @@ export default function DeviceDetailPage() {
                     margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
                   >
                     <CartesianGrid strokeDasharray="4 4" stroke="#1e293b" />
-                    <XAxis dataKey="time" tick={{ fontSize: 12, fill: '#94a3b8' }} />
-                    <YAxis domain={[0, 1]} tick={{ fontSize: 12, fill: '#94a3b8' }} />
+                    <XAxis
+                      dataKey="time"
+                      tick={{ fontSize: 12, fill: "#94a3b8" }}
+                    />
+                    <YAxis
+                      domain={[0, 1]}
+                      tick={{ fontSize: 12, fill: "#94a3b8" }}
+                    />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend />
                     <Line
@@ -1006,7 +819,9 @@ export default function DeviceDetailPage() {
                     >
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
-                          <span className={`rounded-full border px-3 py-1 text-xs font-semibold capitalize ${getPredictionBadge(item.prediction)}`}>
+                          <span
+                            className={`rounded-full border px-3 py-1 text-xs font-semibold capitalize ${getPredictionBadge(item.prediction)}`}
+                          >
                             {item.prediction}
                           </span>
                           <span className="text-xs text-slate-400">
@@ -1019,7 +834,9 @@ export default function DeviceDetailPage() {
                         </div>
                       </div>
 
-                      <div className="mt-3 text-sm text-slate-200">{item.reason}</div>
+                      <div className="mt-3 text-sm text-slate-200">
+                        {item.reason}
+                      </div>
                     </div>
                   ))}
 
@@ -1029,7 +846,7 @@ export default function DeviceDetailPage() {
                         onClick={() => setShowAllAi((prev) => !prev)}
                         className="rounded-xl border border-slate-700 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10"
                       >
-                        {showAllAi ? 'Afficher moins' : 'Afficher plus'}
+                        {showAllAi ? "Afficher moins" : "Afficher plus"}
                       </button>
                     </div>
                   )}
@@ -1054,8 +871,11 @@ export default function DeviceDetailPage() {
                     margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
                   >
                     <CartesianGrid strokeDasharray="4 4" stroke="#1e293b" />
-                    <XAxis dataKey="time" tick={{ fontSize: 12, fill: '#94a3b8' }} />
-                    <YAxis tick={{ fontSize: 12, fill: '#94a3b8' }} />
+                    <XAxis
+                      dataKey="time"
+                      tick={{ fontSize: 12, fill: "#94a3b8" }}
+                    />
+                    <YAxis tick={{ fontSize: 12, fill: "#94a3b8" }} />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend />
                     <Line
@@ -1092,7 +912,10 @@ export default function DeviceDetailPage() {
           </SectionCard>
 
           <div className="grid gap-6 xl:grid-cols-2">
-            <SectionCard title="Métriques récentes" subtitle="Dernières remontées envoyées par l’écran">
+            <SectionCard
+              title="Métriques récentes"
+              subtitle="Dernières remontées envoyées par l’écran"
+            >
               <div className="space-y-3">
                 {metrics.length === 0 ? (
                   <p className="text-slate-500">No metrics found.</p>
@@ -1108,9 +931,9 @@ export default function DeviceDetailPage() {
                             {new Date(metric.timestamp).toLocaleString()}
                           </div>
                           <div className="text-sm font-medium text-slate-200">
-                            CPU: {metric.cpu}% | RAM: {metric.ram}% | TEMP:{' '}
-                            {metric.temp != null ? `${metric.temp}°C` : '-'} | VLC:{' '}
-                            {metric.vlc_running ? ' Running' : ' Stopped'}
+                            CPU: {metric.cpu}% | RAM: {metric.ram}% | TEMP:{" "}
+                            {metric.temp != null ? `${metric.temp}°C` : "-"} |
+                            VLC: {metric.vlc_running ? " Running" : " Stopped"}
                           </div>
                         </div>
                       </div>
@@ -1122,7 +945,7 @@ export default function DeviceDetailPage() {
                           onClick={() => setShowAllMetrics((prev) => !prev)}
                           className="rounded-xl border border-slate-700 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10"
                         >
-                          {showAllMetrics ? 'Afficher moins' : 'Afficher plus'}
+                          {showAllMetrics ? "Afficher moins" : "Afficher plus"}
                         </button>
                       </div>
                     )}
@@ -1131,7 +954,10 @@ export default function DeviceDetailPage() {
               </div>
             </SectionCard>
 
-            <SectionCard title="Alertes récentes" subtitle="Événements critiques ou informatifs">
+            <SectionCard
+              title="Alertes récentes"
+              subtitle="Événements critiques ou informatifs"
+            >
               <div className="space-y-3">
                 {alerts.length === 0 ? (
                   <p className="text-slate-500">No alerts found.</p>
@@ -1144,7 +970,9 @@ export default function DeviceDetailPage() {
                       >
                         <div className="flex items-center justify-between gap-3">
                           <div className="flex items-center gap-2">
-                            <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${getAlertBadge(alert.type)}`}>
+                            <span
+                              className={`rounded-full border px-3 py-1 text-xs font-semibold ${getAlertBadge(alert.type)}`}
+                            >
                               {alert.type}
                             </span>
                           </div>
@@ -1153,10 +981,13 @@ export default function DeviceDetailPage() {
                           </div>
                         </div>
 
-                        <div className="mt-3 text-sm text-slate-200">{alert.message}</div>
+                        <div className="mt-3 text-sm text-slate-200">
+                          {alert.message}
+                        </div>
 
                         <div className="mt-2 text-xs text-slate-500">
-                          Value: {alert.value ?? '-'} | Threshold: {alert.threshold ?? '-'}
+                          Value: {alert.value ?? "-"} | Threshold:{" "}
+                          {alert.threshold ?? "-"}
                         </div>
                       </div>
                     ))}
@@ -1167,7 +998,7 @@ export default function DeviceDetailPage() {
                           onClick={() => setShowAllAlerts((prev) => !prev)}
                           className="rounded-xl border border-slate-700 bg-white/5 px-4 py-2 text-sm text-slate-200 transition hover:bg-white/10"
                         >
-                          {showAllAlerts ? 'Afficher moins' : 'Afficher plus'}
+                          {showAllAlerts ? "Afficher moins" : "Afficher plus"}
                         </button>
                       </div>
                     )}
@@ -1179,5 +1010,5 @@ export default function DeviceDetailPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }

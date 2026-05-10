@@ -410,3 +410,26 @@ export async function getCaptureById(id: string) {
 
   return parseJson(res)
 }
+
+export async function simulateDeviceAnomaly(
+  deviceId: string,
+  type: 'normal' | 'black_screen' | 'frozen' | 'wrong_content'
+) {
+  const token = getToken()
+
+  const res = await fetch(`${API}/devices/${deviceId}/simulate-anomaly`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ type }),
+  })
+
+  if (!res.ok) {
+    const text = await res.text()
+    throw new Error(text || 'Simulation failed')
+  }
+
+  return res.json()
+}

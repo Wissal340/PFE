@@ -3,6 +3,7 @@ import secrets
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import UUID
+from pydantic import BaseModel
 from fastapi import UploadFile, File
 import os
 
@@ -1514,3 +1515,71 @@ def get_capture_detail(
         "created_at": capture.created_at.isoformat() if capture.created_at else None,
     }
 
+class SimulateAnomalyRequest(BaseModel):
+    type: str
+
+
+@app.post("/devices/{device_id}/simulate-anomaly")
+async def simulate_anomaly(
+    device_id: UUID,
+    payload: SimulateAnomalyRequest,
+    db: Session = Depends(get_db),
+):
+    device = db.query(Device).filter(Device.id == device_id).first()
+
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    messages = {
+        "black_screen": "Écran noir détecté",
+        "frozen": "Diffusion figée détectée",
+        "wrong_content": "Contenu non programmé détecté",
+        "normal": "Retour à l’état normal",
+    }
+
+    alert_types = {
+        "black_screen": "BLACK_SCREEN",
+        "frozen": "FROZEN",
+        "wrong_content": "WRONG_CONTENT",
+        "normal": "NORMAL",
+    }
+
+    alert = Alert(
+        device_id=device.id,
+        type=alert_types.get(payload.type, "SIMULATION"),
+        message=messages.get(payload.type, "Anomalie simulée"),
+        value=1.0,
+        threshold=1.0,
+    )
+
+    db.add(alert)
+    db.commit()
+    db.refresh(alert)
+
+    created_at = None
+    if alert.created_at:
+        created_at = alert.created_at.isoformat()
+
+    await manager.broadcast(
+        {
+            "type": "alert_created",
+            "payload": {
+                "id": alert.id,
+                "device_id": str(device.id),
+                "device_name": device.name,
+                "device_location": device.location,
+                "type": alert.type,
+                "message": alert.message,
+                "value": alert.value,
+                "threshold": alert.threshold,
+                "created_at": created_at,
+            },
+        }
+    )
+
+    return {
+        "success": True,
+        "alert_id": alert.id,
+        "device_id": str(device.id),
+        "message": alert.message,
+    }
